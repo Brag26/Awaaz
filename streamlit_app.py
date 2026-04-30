@@ -1,248 +1,622 @@
 """
-VoiceBot Platform — Streamlit Frontend
-Run: streamlit run app.py
+Awaaz — Voice Bot Platform
+Premium Streamlit UI · VAPI + Twilio + Python
 """
 
 import streamlit as st
 import pandas as pd
 import requests
 import time
-import io
 from datetime import datetime
 
-# ─── Config ───────────────────────────────────────────────────────────────────
+# ─── Page config ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="VoiceBot Platform",
-    page_icon="📞",
+    page_title="Awaaz",
+    page_icon="🎙️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 API = "http://localhost:4000/api"
 
-# ─── Styling ──────────────────────────────────────────────────────────────────
+# ─── Premium CSS ──────────────────────────────────────────────────────────────
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #080b10;
+  --bg2:       #0d1117;
+  --bg3:       #111720;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+  --text:      #e8e3da;
+  --muted:     #5a6478;
+  --muted2:    #8892a4;
+  --gold:      #e8b84b;
+  --gold2:     #f5d07a;
+  --gold-glow: rgba(232,184,75,0.15);
+  --teal:      #3ecfb2;
+  --red:       #e85555;
+  --blue:      #4d9fff;
+  --green:     #3ecf8e;
+  --radius:    14px;
+  --radius-sm: 8px;
 }
 
-/* Dark base */
+html, body, [class*="css"] {
+  font-family: 'Instrument Sans', sans-serif;
+  background: var(--bg) !important;
+  color: var(--text);
+}
+
 .stApp {
-    background: #0d0f14;
-    color: #e2ddd6;
+  background: var(--bg) !important;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232,184,75,0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(62,207,178,0.04), transparent);
+  min-height: 100vh;
 }
 
 .block-container {
-    padding-top: 2rem;
-    max-width: 1400px;
+  padding: 0 2rem 3rem 2rem !important;
+  max-width: 1440px !important;
 }
 
-/* Sidebar */
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #111318 !important;
-    border-right: 1px solid rgba(255,255,255,0.07);
+  background: var(--bg2) !important;
+  border-right: 1px solid var(--border) !important;
+  padding: 0 !important;
 }
-[data-testid="stSidebar"] .stMarkdown p {
-    color: #9ca3af;
-    font-size: 12px;
-    letter-spacing: 0.05em;
+[data-testid="stSidebar"] > div:first-child {
+  padding: 0;
 }
-
-/* Metric cards */
-[data-testid="stMetric"] {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 16px 20px;
-}
-[data-testid="stMetricLabel"] {
-    font-size: 11px !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    color: #6b7280 !important;
-}
-[data-testid="stMetricValue"] {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 28px !important;
-    color: #f0ede8 !important;
-}
-[data-testid="stMetricDelta"] {
-    font-family: 'DM Mono', monospace !important;
+section[data-testid="stSidebar"] .block-container {
+  padding: 0 !important;
 }
 
-/* Buttons */
+/* ── Hide Streamlit chrome ── */
+#MainMenu, footer, header { visibility: hidden; }
+[data-testid="stToolbar"] { display: none; }
+.stDeployButton { display: none; }
+
+/* ── Buttons ── */
 .stButton > button {
-    background: #e8c547;
-    color: #0d0f14;
-    border: none;
-    border-radius: 8px;
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 600;
-    font-size: 14px;
-    padding: 10px 22px;
-    transition: all 0.2s;
-    width: 100%;
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.04em !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border2) !important;
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--text) !important;
+  transition: all 0.18s ease !important;
+  padding: 10px 20px !important;
+  width: 100% !important;
 }
 .stButton > button:hover {
-    background: #f0d060;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(232,197,71,0.3);
+  background: rgba(255,255,255,0.08) !important;
+  border-color: rgba(255,255,255,0.2) !important;
+  transform: translateY(-1px) !important;
 }
 
-/* Danger button override */
-.danger-btn button {
-    background: rgba(239,68,68,0.15) !important;
-    color: #ef4444 !important;
-    border: 1px solid rgba(239,68,68,0.3) !important;
+/* Primary gold button */
+.btn-primary .stButton > button {
+  background: var(--gold) !important;
+  color: #080b10 !important;
+  border-color: var(--gold) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 24px rgba(232,184,75,0.25) !important;
 }
-.danger-btn button:hover {
-    background: rgba(239,68,68,0.25) !important;
-    box-shadow: 0 4px 16px rgba(239,68,68,0.2) !important;
+.btn-primary .stButton > button:hover {
+  background: var(--gold2) !important;
+  box-shadow: 0 0 36px rgba(232,184,75,0.4) !important;
+  transform: translateY(-2px) !important;
 }
 
-/* Inputs */
+/* Danger button */
+.btn-danger .stButton > button {
+  background: rgba(232,85,85,0.1) !important;
+  color: var(--red) !important;
+  border-color: rgba(232,85,85,0.3) !important;
+}
+.btn-danger .stButton > button:hover {
+  background: rgba(232,85,85,0.2) !important;
+  box-shadow: 0 0 20px rgba(232,85,85,0.2) !important;
+}
+
+/* Ghost nav button */
+.nav-btn .stButton > button {
+  background: transparent !important;
+  border: none !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  color: var(--muted2) !important;
+  font-family: 'Instrument Sans', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  padding: 10px 20px !important;
+  border-radius: 0 !important;
+  letter-spacing: 0 !important;
+  transition: all 0.15s !important;
+}
+.nav-btn .stButton > button:hover {
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--text) !important;
+  transform: none !important;
+}
+.nav-btn-active .stButton > button {
+  background: rgba(232,184,75,0.08) !important;
+  color: var(--gold) !important;
+  border-left: 2px solid var(--gold) !important;
+  border-radius: 0 !important;
+}
+
+/* ── Inputs ── */
 .stTextInput > div > div > input,
-.stNumberInput > div > div > input,
+.stNumberInput > div > div > input {
+  background: var(--bg3) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text) !important;
+  font-family: 'Space Mono', monospace !important;
+  font-size: 12px !important;
+  padding: 10px 14px !important;
+  transition: border-color 0.2s !important;
+}
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 3px rgba(232,184,75,0.1) !important;
+}
+.stTextInput label, .stNumberInput label, .stSelectbox label,
+.stSlider label, .stFileUploader label {
+  font-family: 'Syne', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: var(--muted2) !important;
+}
+
+/* Selectbox */
 .stSelectbox > div > div {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 8px !important;
-    color: #f0ede8 !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 13px !important;
+  background: var(--bg3) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--text) !important;
+  font-family: 'Space Mono', monospace !important;
+  font-size: 12px !important;
 }
 
-/* Progress bar */
+/* Slider */
+.stSlider > div > div > div > div {
+  background: var(--gold) !important;
+}
+
+/* ── Progress bar ── */
 .stProgress > div > div > div > div {
-    background: #e8c547;
+  background: linear-gradient(90deg, var(--gold), var(--teal)) !important;
+  border-radius: 99px !important;
+}
+.stProgress > div > div > div {
+  background: rgba(255,255,255,0.06) !important;
+  border-radius: 99px !important;
 }
 
-/* Dataframe */
+/* ── Metrics ── */
+[data-testid="stMetric"] {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding: 20px 22px !important;
+  position: relative;
+  overflow: hidden;
+}
+[data-testid="stMetric"]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.4;
+}
+[data-testid="stMetricLabel"] > div {
+  font-family: 'Syne', sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+}
+[data-testid="stMetricValue"] > div {
+  font-family: 'Space Mono', monospace !important;
+  font-size: 30px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  line-height: 1.1 !important;
+}
+
+/* ── Dataframe ── */
 .stDataFrame {
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  overflow: hidden !important;
+}
+.stDataFrame [data-testid="stDataFrameResizable"] {
+  background: var(--bg2) !important;
 }
 
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    background: transparent;
-    gap: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+/* ── Expander ── */
+details summary {
+  font-family: 'Syne', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
 }
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    color: #6b7280 !important;
-    border: none !important;
-    font-size: 14px;
-    padding: 10px 20px;
+.streamlit-expanderHeader {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
 }
-.stTabs [aria-selected="true"] {
-    color: #e8c547 !important;
-    border-bottom: 2px solid #e8c547 !important;
-}
-
-/* Status badges */
-.badge {
-    display: inline-block;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    padding: 3px 10px;
-    border-radius: 20px;
+.streamlit-expanderContent {
+  background: var(--bg3) !important;
+  border: 1px solid var(--border) !important;
+  border-top: none !important;
 }
 
-/* Section headers */
-.section-title {
-    font-size: 13px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #6b7280;
-    margin-bottom: 12px;
-    margin-top: 4px;
+/* ── Alerts ── */
+.stAlert {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid !important;
+  font-family: 'Instrument Sans', sans-serif !important;
+  font-size: 13px !important;
+}
+div[data-baseweb="notification"] {
+  border-radius: var(--radius-sm) !important;
 }
 
-/* Upload area */
+/* ── File uploader ── */
 [data-testid="stFileUploader"] {
-    background: rgba(255,255,255,0.02);
-    border: 2px dashed rgba(255,255,255,0.12);
-    border-radius: 12px;
-    padding: 8px;
+  background: var(--bg3) !important;
+  border: 2px dashed var(--border2) !important;
+  border-radius: var(--radius) !important;
+  transition: border-color 0.2s !important;
 }
 [data-testid="stFileUploader"]:hover {
-    border-color: rgba(232,197,71,0.4);
+  border-color: var(--gold) !important;
+}
+[data-testid="stFileUploaderDropzone"] {
+  background: transparent !important;
 }
 
-/* Divider */
+/* ── Form ── */
+[data-testid="stForm"] {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--bg2) !important;
+  padding: 24px !important;
+}
+
+/* ── Download button ── */
+.stDownloadButton > button {
+  font-family: 'Syne', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+  border: 1px solid var(--border2) !important;
+  color: var(--muted2) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 8px 16px !important;
+}
+.stDownloadButton > button:hover {
+  border-color: var(--gold) !important;
+  color: var(--gold) !important;
+  background: var(--gold-glow) !important;
+}
+
+/* ── Divider ── */
 hr {
-    border: none;
-    border-top: 1px solid rgba(255,255,255,0.08);
-    margin: 20px 0;
+  border: none !important;
+  border-top: 1px solid var(--border) !important;
+  margin: 28px 0 !important;
 }
 
-/* Expander */
-.streamlit-expanderHeader {
-    background: rgba(255,255,255,0.03) !important;
-    border-radius: 8px !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
+/* ── Custom classes ── */
+.awaaz-logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
 }
 
-/* Alert/info boxes */
-.stAlert {
-    border-radius: 10px;
+.awaaz-tagline {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 2px;
 }
 
-/* Logo / header */
-.platform-logo {
-    font-family: 'DM Mono', monospace;
-    font-size: 20px;
-    font-weight: 500;
-    color: #e8c547;
-    letter-spacing: -0.02em;
+.page-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1;
 }
 
-.call-row-completed { color: #10b981; }
-.call-row-failed    { color: #ef4444; }
-.call-row-dialing   { color: #3b82f6; }
-.call-row-pending   { color: #6b7280; }
+.page-sub {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 14px;
+  color: var(--muted2);
+  margin-top: 6px;
+  font-weight: 300;
+  font-style: italic;
+}
 
-/* Pulse animation for live indicator */
+.section-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+  margin-top: 4px;
+}
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-glow {
+  background: var(--bg2);
+  border: 1px solid rgba(232,184,75,0.2);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: 0 0 40px rgba(232,184,75,0.06), inset 0 1px 0 rgba(232,184,75,0.12);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: middle;
+}
+.dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-gold   { background: var(--gold);  box-shadow: 0 0 6px var(--gold); }
+.dot-red    { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.dot-blue   { background: var(--blue);  box-shadow: 0 0 6px var(--blue); }
+.dot-grey   { background: var(--muted); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-weight: 400;
+}
+.badge-green { background: rgba(62,207,142,0.1);  color: var(--green); border: 1px solid rgba(62,207,142,0.2); }
+.badge-gold  { background: rgba(232,184,75,0.1);  color: var(--gold);  border: 1px solid rgba(232,184,75,0.2); }
+.badge-red   { background: rgba(232,85,85,0.1);   color: var(--red);   border: 1px solid rgba(232,85,85,0.2); }
+.badge-blue  { background: rgba(77,159,255,0.1);  color: var(--blue);  border: 1px solid rgba(77,159,255,0.2); }
+.badge-grey  { background: rgba(90,100,120,0.15); color: var(--muted2);border: 1px solid rgba(90,100,120,0.2); }
+.badge-teal  { background: rgba(62,207,178,0.1);  color: var(--teal);  border: 1px solid rgba(62,207,178,0.2); }
+
+.assistant-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  transition: border-color 0.2s;
+}
+.assistant-card:hover {
+  border-color: var(--border2);
+}
+.assistant-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.assistant-id {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.assistant-desc {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 12px;
+  color: var(--muted2);
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.stat-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stat-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  margin-top: 6px;
+}
+
+.live-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(62,207,142,0.08);
+  border: 1px solid rgba(62,207,142,0.2);
+  border-radius: 99px;
+  padding: 5px 14px;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--green);
+}
+
+.info-row {
+  display: flex; gap: 24px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 13px;
+  color: var(--muted2);
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.info-row span { display: flex; align-items: center; gap: 6px; }
+.info-row strong { color: var(--text); font-weight: 500; }
+
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
 }
-.live-dot {
-    display: inline-block;
-    width: 8px; height: 8px;
-    background: #10b981;
-    border-radius: 50%;
-    animation: pulse 1.5s ease-in-out infinite;
-    margin-right: 6px;
+.pulse { animation: pulse 2s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
 }
+
+.waveform {
+  display: flex; align-items: center; gap: 3px; height: 24px;
+}
+.waveform span {
+  display: inline-block; width: 3px; border-radius: 2px;
+  background: var(--gold);
+  animation: wave 1.2s ease-in-out infinite;
+}
+.waveform span:nth-child(1) { height: 6px;  animation-delay: 0s; }
+.waveform span:nth-child(2) { height: 14px; animation-delay: 0.1s; }
+.waveform span:nth-child(3) { height: 20px; animation-delay: 0.2s; }
+.waveform span:nth-child(4) { height: 14px; animation-delay: 0.3s; }
+.waveform span:nth-child(5) { height: 8px;  animation-delay: 0.4s; }
+.waveform span:nth-child(6) { height: 16px; animation-delay: 0.5s; }
+.waveform span:nth-child(7) { height: 10px; animation-delay: 0.6s; }
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+.sidebar-section {
+  padding: 20px 16px 8px 16px;
+}
+.sidebar-nav-item {
+  padding: 2px 0;
+}
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 16px;
+}
+.sidebar-footer {
+  padding: 16px;
+  margin-top: auto;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+.empty-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted2);
+  margin-bottom: 8px;
+}
+.empty-desc {
+  font-size: 13px;
+  font-style: italic;
+  font-family: 'Instrument Sans', sans-serif;
+}
+
+/* Tabs styling */
+.stTabs [data-baseweb="tab-list"] {
+  background: transparent !important;
+  gap: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border: none !important;
+  font-family: 'Syne', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  padding: 10px 20px !important;
+  border-bottom: 2px solid transparent !important;
+}
+.stTabs [aria-selected="true"] {
+  color: var(--gold) !important;
+  border-bottom: 2px solid var(--gold) !important;
+}
+
+/* Code blocks */
+code {
+  font-family: 'Space Mono', monospace !important;
+  font-size: 11px !important;
+  background: rgba(255,255,255,0.06) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  color: var(--teal) !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # ─── State ────────────────────────────────────────────────────────────────────
 
 def init_state():
-    defaults = {
+    for k, v in {
         "contacts": None,
         "file_name": None,
         "active_campaign_id": None,
-        "campaign_log": [],
         "tab": "Campaign",
-    }
-    for k, v in defaults.items():
+    }.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 init_state()
 
-# ─── API helpers ─────────────────────────────────────────────────────────────
+# ─── API ──────────────────────────────────────────────────────────────────────
 
 def api_get(path, default=None):
     try:
@@ -268,13 +642,13 @@ def backend_alive():
         return False
 
 def get_assistant_options():
-    """Returns list of (label, assistant_id) tuples for selectbox."""
     assistants = api_get("/assistants", [])
-    settings = api_get("/settings", {})
+    settings   = api_get("/settings", {})
     default_id = settings.get("vapi_assistant_id", "")
-    options = [("⭐ Default" + (f" ({default_id[:14]}...)" if default_id else " (not set)"), default_id)]
+    short = default_id[:16] + "…" if len(default_id) > 16 else default_id
+    options = [("⭐  Default" + (f"  ·  {short}" if default_id else "  ·  not set"), default_id)]
     for a in assistants:
-        lbl = f"🤖 {a['name']}"
+        lbl = f"🤖  {a['name']}"
         if a.get("description"):
             lbl += f"  ·  {a['description']}"
         options.append((lbl, a["assistant_id"]))
@@ -282,131 +656,120 @@ def get_assistant_options():
 
 def assistant_selectbox(label, key):
     options = get_assistant_options()
-    labels = [o[0] for o in options]
+    labels  = [o[0] for o in options]
     idx = st.selectbox(label, range(len(labels)), format_func=lambda i: labels[i], key=key)
     return options[idx][1]
 
-
-# ─── Status color mapping ──────────────────────────────────────────────────
-
-STATUS_EMOJI = {
-    "pending": "⬜",
-    "queued": "🟡",
-    "dialing": "🔵",
-    "in-progress": "🟢",
-    "completed": "✅",
-    "failed": "🔴",
-    "no-answer": "🟠",
-    "starting": "🟡",
-    "running": "🟢",
-    "aborted": "🔴",
+STATUS_META = {
+    "pending":     ("grey",  "⬡", "Pending"),
+    "queued":      ("gold",  "◔", "Queued"),
+    "dialing":     ("blue",  "◑", "Dialing"),
+    "in-progress": ("teal",  "●", "Live"),
+    "completed":   ("green", "✓", "Completed"),
+    "failed":      ("red",   "✗", "Failed"),
+    "no-answer":   ("gold",  "⊘", "No Answer"),
+    "starting":    ("gold",  "◔", "Starting"),
+    "running":     ("green", "●", "Running"),
+    "aborted":     ("red",   "✗", "Aborted"),
 }
+
+def status_badge(status):
+    c, ic, lbl = STATUS_META.get(status, ("grey", "?", status))
+    return f'<span class="badge badge-{c}">{ic} {lbl}</span>'
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown('<div class="platform-logo">📞 VoiceBot</div>', unsafe_allow_html=True)
-    st.markdown("**Platform**")
-    st.markdown("---")
+    alive = backend_alive()
+
+    # Logo
+    st.markdown("""
+    <div style="padding: 28px 20px 20px 20px; border-bottom: 1px solid var(--border);">
+      <div class="awaaz-logo">आवाज़</div>
+      <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.2em;color:var(--muted);margin-top:2px;text-transform:uppercase;">Awaaz</div>
+      <div class="awaaz-tagline" style="margin-top:6px;">Voice Bot Platform</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Backend status
-    alive = backend_alive()
-    if alive:
-        st.markdown('<span class="live-dot"></span> **Backend connected**', unsafe_allow_html=True)
-    else:
-        st.error("⚠️ Backend offline\n\nRun: `uvicorn backend:app --port 4000`")
+    st.markdown(f"""
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);">
+      <span class="status-dot {'dot-green pulse' if alive else 'dot-red'}"></span>
+      <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.06em;color:{'var(--green)' if alive else 'var(--red)'};">
+        {'BACKEND LIVE' if alive else 'BACKEND OFFLINE'}
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.markdown('<p class="section-title">Navigation</p>', unsafe_allow_html=True)
-
-    pages = ["🚀 Campaign", "📞 Single Call", "📊 Dashboard", "🤖 Assistants", "⚙️ Settings"]
-    for p in pages:
-        label = p.split(" ", 1)[1]
-        if st.button(p, key=f"nav_{label}", use_container_width=True):
-            st.session_state.tab = label
-
-    st.markdown("---")
-    st.markdown('<p style="font-size:11px;color:#4b5563;">VAPI + Twilio + Python</p>', unsafe_allow_html=True)
-
-# ─── Settings page ────────────────────────────────────────────────────────────
-
-if st.session_state.tab == "Settings":
-    st.markdown("## ⚙️ Settings")
-    st.markdown("Configure your VAPI and Twilio credentials.")
-    st.markdown("---")
-
-    current = api_get("/settings", {})
-
-    with st.form("settings_form"):
-        st.markdown('<p class="section-title">VAPI Configuration</p>', unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            vapi_key = st.text_input("VAPI API Key", value=current.get("vapi_api_key",""), type="password", placeholder="vapi_...")
-        with col2:
-            vapi_asst = st.text_input("Default Assistant ID", value=current.get("vapi_assistant_id",""), placeholder="asst_...")
-
-        st.markdown('<p class="section-title">Twilio</p>', unsafe_allow_html=True)
-        twilio_num = st.text_input(
-            "VAPI Phone Number ID (linked to Twilio)",
-            value=current.get("twilio_phone_number",""),
-            placeholder="The Phone Number ID from VAPI dashboard",
-            help="In VAPI → Phone Numbers → copy the ID (not the actual number)"
-        )
-
-        st.markdown('<p class="section-title">Rate Limiting</p>', unsafe_allow_html=True)
-        cpm = st.slider("Calls per minute", min_value=1, max_value=60, value=int(current.get("calls_per_minute", 10)))
-
-        submitted = st.form_submit_button("💾 Save Settings")
-        if submitted:
-            data, err = api_post("/settings", {
-                "vapi_api_key": vapi_key,
-                "vapi_assistant_id": vapi_asst,
-                "twilio_phone_number": twilio_num,
-                "calls_per_minute": cpm,
-            })
-            if err:
-                st.error(f"Failed to save: {err}")
-            else:
-                st.success("✅ Settings saved!")
-
-    st.markdown("---")
-    st.markdown("### 📌 Setup Guide")
-    with st.expander("How to get your VAPI credentials"):
+    if not alive:
         st.markdown("""
-1. Go to [vapi.ai](https://vapi.ai) → **API Keys** → copy your key
-2. Go to **Assistants** → open your bot → copy the **Assistant ID**
-3. Go to **Phone Numbers** → your Twilio number → copy the **Phone Number ID**
-4. Paste all three above and save
-        """)
-    with st.expander("Webhook setup (for live call status)"):
-        st.markdown("""
-In VAPI Dashboard → **Assistants** → your assistant → **Server URL**:
+        <div style="padding:10px 20px;">
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);background:rgba(255,255,255,0.04);padding:10px;border-radius:6px;border:1px solid var(--border);">
+            uvicorn backend:app \\<br>&nbsp;&nbsp;--port 4000
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-```
-http://YOUR_SERVER_IP:4000/api/webhook/vapi
-```
+    # Nav
+    st.markdown('<div style="padding:16px 0 8px 0;">', unsafe_allow_html=True)
 
-This lets VAPI push real-time call status updates to your backend.
-Use [ngrok](https://ngrok.com) for local dev: `ngrok http 4000`
-        """)
+    nav_items = [
+        ("Campaign",   "🚀", "Bulk call campaigns"),
+        ("Single Call","📞", "One-off test calls"),
+        ("Dashboard",  "📊", "Live call tracking"),
+        ("Assistants", "🤖", "Manage voice bots"),
+        ("Settings",   "⚙️", "API credentials"),
+    ]
+    for tab, icon, desc in nav_items:
+        active = st.session_state.tab == tab
+        css_class = "nav-btn-active nav-btn" if active else "nav-btn"
+        st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+        if st.button(f"{icon}  {tab}", key=f"nav_{tab}", use_container_width=True):
+            st.session_state.tab = tab
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# ─── Campaign page ────────────────────────────────────────────────────────────
+    st.markdown('</div>', unsafe_allow_html=True)
 
-elif st.session_state.tab == "Campaign":
-    st.markdown("## 🚀 Bulk Call Campaign")
-    st.markdown("Upload a contact list and trigger outbound calls to everyone at once.")
-    st.markdown("---")
+    # Sidebar footer
+    st.markdown("""
+    <div style="position:fixed;bottom:0;left:0;width:inherit;padding:16px 20px;border-top:1px solid var(--border);background:var(--bg2);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="waveform">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.1em;">VAPI · TWILIO</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+#  PAGES
+# ════════════════════════════════════════════════════════════════════════════════
+
+# ─── Campaign ─────────────────────────────────────────────────────────────────
+
+if st.session_state.tab == "Campaign":
+
+    st.markdown("""
+    <div style="padding: 32px 0 24px 0;">
+      <div class="page-title">Bulk Campaign</div>
+      <div class="page-sub">Upload contacts, pick a voice bot, launch calls at scale</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_left, col_right = st.columns([3, 2], gap="large")
 
     with col_left:
-        st.markdown('<p class="section-title">1 · Upload Contact List</p>', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">01 · Upload Contact List</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
 
         uploaded = st.file_uploader(
-            "CSV or Excel file",
+            "Drop CSV or Excel here",
             type=["csv", "xlsx", "xls"],
-            help="File must have columns: phone (required), name (optional)",
             label_visibility="collapsed",
+            help="Columns needed: phone (required), name (optional)"
         )
 
         if uploaded:
@@ -416,12 +779,9 @@ elif st.session_state.tab == "Campaign":
                 else:
                     df = pd.read_excel(uploaded)
 
-                # Normalize column names
                 df.columns = [c.strip().lower() for c in df.columns]
-
-                # Find phone column
-                phone_col = next((c for c in df.columns if "phone" in c or "mobile" in c or "number" in c), df.columns[0])
-                name_col = next((c for c in df.columns if "name" in c), None)
+                phone_col = next((c for c in df.columns if any(k in c for k in ["phone","mobile","number"])), df.columns[0])
+                name_col  = next((c for c in df.columns if "name" in c), None)
 
                 df = df.rename(columns={phone_col: "phone"})
                 if name_col and name_col != "phone":
@@ -435,267 +795,503 @@ elif st.session_state.tab == "Campaign":
                 st.session_state.contacts = df
                 st.session_state.file_name = uploaded.name
 
-                st.success(f"✅ Loaded **{len(df)} contacts** from `{uploaded.name}`")
+                st.markdown(f"""
+                <div style="margin-top:12px;padding:14px 18px;background:rgba(62,207,142,0.06);border:1px solid rgba(62,207,142,0.15);border-radius:8px;display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:20px;">✅</span>
+                  <div>
+                    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);">{len(df)} contacts loaded</div>
+                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;">{uploaded.name}</div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
 
             except Exception as e:
-                st.error(f"Could not parse file: {e}")
+                st.error(f"Parse error: {e}")
 
-        # Download sample CSV
+        st.markdown("""
+        <div style="margin-top:14px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">
+          Accepted: .csv · .xlsx · .xls &nbsp;|&nbsp; Columns: name, phone
+        </div>
+        """, unsafe_allow_html=True)
+
         sample = "name,phone\nAlex Kumar,+919876543210\nPriya Sharma,+919123456789\nRaj Patel,+917890123456"
-        st.download_button(
-            "⬇️ Download sample CSV",
-            data=sample,
-            file_name="sample_contacts.csv",
-            mime="text/csv",
-        )
+        st.download_button("⬇ Download sample CSV", data=sample, file_name="sample_contacts.csv", mime="text/csv")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Preview
+        if st.session_state.contacts is not None:
+            st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-label">Contact Preview</div>', unsafe_allow_html=True)
+            preview = st.session_state.contacts.head(15).copy()
+            preview.index = preview.index + 1
+            st.dataframe(preview, use_container_width=True, height=280)
+            if len(st.session_state.contacts) > 15:
+                st.markdown(f'<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);margin-top:6px;">+{len(st.session_state.contacts)-15} more contacts not shown</div>', unsafe_allow_html=True)
 
     with col_right:
-        st.markdown('<p class="section-title">2 · Campaign Settings</p>', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">02 · Campaign Settings</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-glow">', unsafe_allow_html=True)
 
-        campaign_name = st.text_input("Campaign Name", placeholder="e.g. April Follow-up")
-        selected_asst_id = assistant_selectbox("Select Assistant", key="campaign_asst")
+        campaign_name   = st.text_input("Campaign Name", placeholder="e.g. April Follow-up Drive")
+        selected_asst   = assistant_selectbox("Voice Assistant", key="campaign_asst")
 
         settings = api_get("/settings", {})
-        cpm = settings.get("calls_per_minute", 10)
+        cpm      = settings.get("calls_per_minute", 10)
 
         if st.session_state.contacts is not None:
-            n = len(st.session_state.contacts)
+            n       = len(st.session_state.contacts)
             est_min = round(n / max(cpm, 1), 1)
-            st.info(f"📋 **{n} contacts** · ~{est_min} min at {cpm} calls/min")
+            st.markdown(f"""
+            <div style="margin:16px 0;padding:14px 18px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Contacts</span>
+                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);">{n:,}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Rate</span>
+                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);">{cpm}/min</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Est. Duration</span>
+                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--gold);">~{est_min} min</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown("---")
-        start_disabled = (st.session_state.contacts is None or not campaign_name)
-
-        if st.button("▶ Start Campaign", disabled=start_disabled):
+        st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+        disabled = st.session_state.contacts is None or not campaign_name
+        st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
+        if st.button("▶  Launch Campaign", disabled=disabled):
             if not alive:
-                st.error("Backend is offline. Start the backend first.")
+                st.error("Backend is offline. Start it first.")
             else:
-                contacts = st.session_state.contacts.to_dict("records")
                 data, err = api_post("/campaign/start", {
                     "campaign_name": campaign_name,
-                    "contacts": contacts,
-                    "assistant_id": selected_asst_id or None,
+                    "contacts": st.session_state.contacts.to_dict("records"),
+                    "assistant_id": selected_asst or None,
                 })
                 if err:
-                    st.error(f"Failed: {err}")
+                    st.error(f"Error: {err}")
                 else:
                     st.session_state.active_campaign_id = data["campaign_id"]
-                    st.success(f"🚀 Campaign started! ID: `{data['campaign_id'][:8]}...`")
                     st.session_state.tab = "Dashboard"
                     st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Preview table
-    if st.session_state.contacts is not None:
-        st.markdown("---")
-        st.markdown('<p class="section-title">Contact Preview</p>', unsafe_allow_html=True)
-        preview = st.session_state.contacts.head(20).copy()
-        preview.index = preview.index + 1
-        st.dataframe(preview, use_container_width=True, height=300)
-        if len(st.session_state.contacts) > 20:
-            st.caption(f"Showing 20 of {len(st.session_state.contacts)} contacts")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# ─── Single Call page ─────────────────────────────────────────────────────────
+        # Tips card
+        st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+          <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">💡 Quick Tips</div>
+          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--muted2);line-height:1.8;">
+            · Phone numbers in E.164 format: <code>+91XXXXXXXXXX</code><br>
+            · Max 60 calls/min per VAPI plan<br>
+            · All calls logged in Dashboard<br>
+            · Set up webhook for live status
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ─── Single Call ──────────────────────────────────────────────────────────────
 
 elif st.session_state.tab == "Single Call":
-    st.markdown("## 📞 Single Call")
-    st.markdown("Trigger a test call to one number.")
-    st.markdown("---")
 
-    col1, col2 = st.columns(2)
+    st.markdown("""
+    <div style="padding: 32px 0 24px 0;">
+      <div class="page-title">Single Call</div>
+      <div class="page-sub">Trigger a one-off call — great for testing your assistant</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns([3, 2], gap="large")
     with col1:
-        name = st.text_input("Contact Name", placeholder="e.g. Rahul Verma")
-        phone = st.text_input("Phone Number", placeholder="+919876543210")
-    with col2:
-        single_asst_id = assistant_selectbox("Select Assistant", key="single_asst")
-        st.markdown("<br>", unsafe_allow_html=True)
-        call_btn = st.button("📞 Call Now")
+        st.markdown('<div class="card-glow">', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Call Details</div>', unsafe_allow_html=True)
 
-    if call_btn:
-        if not phone:
-            st.warning("Phone number is required.")
-        elif not alive:
-            st.error("Backend offline.")
-        else:
-            data, err = api_post("/call/single", {
-                "name": name or "Test Contact",
-                "phone": phone,
-                "assistant_id": single_asst_id or None,
-            })
-            if err:
-                st.error(f"Call failed: {err}")
+        c1, c2 = st.columns(2)
+        with c1:
+            name  = st.text_input("Contact Name", placeholder="e.g. Rahul Verma")
+        with c2:
+            phone = st.text_input("Phone Number", placeholder="+919876543210")
+
+        asst_id = assistant_selectbox("Voice Assistant", key="single_asst")
+
+        st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
+        call_btn = st.button("📞  Call Now")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if call_btn:
+            if not phone:
+                st.warning("A phone number is required.")
+            elif not alive:
+                st.error("Backend offline.")
             else:
-                st.success(f"✅ Call triggered! VAPI Call ID: `{data.get('vapi_call_id','N/A')}`")
+                data, err = api_post("/call/single", {
+                    "name": name or "Test Contact",
+                    "phone": phone,
+                    "assistant_id": asst_id or None,
+                })
+                if err:
+                    st.error(f"Call failed: {err}")
+                else:
+                    st.markdown(f"""
+                    <div style="margin-top:16px;padding:16px 20px;background:rgba(62,207,142,0.06);border:1px solid rgba(62,207,142,0.2);border-radius:10px;">
+                      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);margin-bottom:4px;">✓ Call triggered successfully</div>
+                      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">VAPI ID: {data.get('vapi_call_id','—')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.markdown("### Recent Individual Calls")
-    calls = api_get("/calls", [])
-    solo = [c for c in calls if not c.get("campaign_id")]
-    if solo:
-        df = pd.DataFrame(solo)[["name","phone","status","duration","started_at"]]
-        df["status"] = df["status"].map(lambda s: f"{STATUS_EMOJI.get(s,'❓')} {s}")
-        df["duration"] = df["duration"].apply(lambda d: f"{int(d)}s" if d else "—")
-        df.columns = ["Name","Phone","Status","Duration","Started"]
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.caption("No individual calls yet.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# ─── Dashboard page ───────────────────────────────────────────────────────────
+    with col2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Recent Solo Calls</div>', unsafe_allow_html=True)
+
+        calls = api_get("/calls", [])
+        solo  = [c for c in calls if not c.get("campaign_id")]
+
+        if not solo:
+            st.markdown("""
+            <div class="empty-state" style="padding:30px 10px;">
+              <div class="empty-icon">📵</div>
+              <div class="empty-title">No calls yet</div>
+              <div class="empty-desc">Trigger a call to see it here</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            for c in reversed(solo[-8:]):
+                color, icon, lbl = STATUS_META.get(c["status"], ("grey","?",c["status"]))
+                st.markdown(f"""
+                <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                  <div>
+                    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:var(--text);">{c['name']}</div>
+                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;">{c['phone']}</div>
+                  </div>
+                  <span class="badge badge-{color}">{icon} {lbl}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ─── Dashboard ────────────────────────────────────────────────────────────────
 
 elif st.session_state.tab == "Dashboard":
-    st.markdown("## 📊 Dashboard")
 
-    # Campaign selector
+    st.markdown("""
+    <div style="padding: 32px 0 24px 0;">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">Monitor campaign progress and individual call statuses</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     campaigns = api_get("/campaigns", [])
 
     if not campaigns:
-        st.info("No campaigns yet. Go to **Campaign** to start one.")
+        st.markdown("""
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <div class="empty-title">No campaigns yet</div>
+          <div class="empty-desc">Launch a campaign to see live data here</div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        campaign_ids = [c["id"] for c in campaigns]
-        campaign_labels = [f"{c['name']} ({c['id'][:8]}) — {STATUS_EMOJI.get(c['status'],'')} {c['status']}" for c in campaigns]
-
-        # Default to active campaign if set
+        # Campaign selector
+        camp_ids    = [c["id"] for c in campaigns]
+        camp_labels = [f"{c['name']}  ·  {c['id'][:8]}" for c in campaigns]
         default_idx = 0
-        if st.session_state.active_campaign_id in campaign_ids:
-            default_idx = campaign_ids.index(st.session_state.active_campaign_id)
+        if st.session_state.active_campaign_id in camp_ids:
+            default_idx = camp_ids.index(st.session_state.active_campaign_id)
 
-        selected_label = st.selectbox("Select Campaign", campaign_labels, index=default_idx)
-        selected_id = campaign_ids[campaign_labels.index(selected_label)]
+        sel_label = st.selectbox("Select Campaign", camp_labels, index=default_idx, label_visibility="collapsed")
+        sel_id    = camp_ids[camp_labels.index(sel_label)]
+        campaign  = api_get(f"/campaign/{sel_id}", {})
 
-        campaign = api_get(f"/campaign/{selected_id}", {})
         if not campaign:
-            st.error("Could not load campaign.")
+            st.error("Could not load campaign data.")
         else:
-            stats = campaign.get("stats", {})
+            stats      = campaign.get("stats", {})
             is_running = campaign.get("status") in ("running", "starting")
+            c_status   = campaign.get("status", "unknown")
 
-            # Auto-refresh when running
+            # Live pill
             if is_running:
-                st.markdown('<span class="live-dot"></span> **Live — auto-refreshing**', unsafe_allow_html=True)
+                st.markdown("""
+                <div style="margin-bottom:20px;">
+                  <span class="live-pill"><span class="status-dot dot-green pulse"></span>LIVE · AUTO-REFRESHING</span>
+                </div>
+                """, unsafe_allow_html=True)
 
-            # ── KPI row
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Total", stats.get("total", 0))
-            c2.metric("Dispatched", stats.get("dispatched", 0))
-            c3.metric("✅ Completed", stats.get("completed", 0))
-            c4.metric("🔴 Failed", stats.get("failed", 0))
-            c5.metric("🔵 Dialing", stats.get("dialing", 0))
+            # ── KPI Cards
+            col_t, col_d, col_ok, col_fl, col_dl = st.columns(5)
+            kpis = [
+                (col_t,  "Total",       stats.get("total",0),       ""),
+                (col_d,  "Dispatched",  stats.get("dispatched",0),  ""),
+                (col_ok, "Completed",   stats.get("completed",0),   "green"),
+                (col_fl, "Failed",      stats.get("failed",0),      "red"),
+                (col_dl, "Live/Dialing",stats.get("dialing",0),     "blue"),
+            ]
+            for col, lbl, val, accent in kpis:
+                col.metric(lbl, f"{val:,}")
+
+            st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
 
             # ── Progress bar
-            total = stats.get("total", 1)
-            done = stats.get("completed", 0) + stats.get("failed", 0) + stats.get("no_answer", 0)
-            st.progress(done / total, text=f"{done}/{total} calls finished")
+            total = max(stats.get("total", 1), 1)
+            done  = stats.get("completed", 0) + stats.get("failed", 0) + stats.get("no_answer", 0)
+            pct   = done / total
+            st.progress(pct, text=f"{done:,} / {total:,} calls finished  ·  {round(pct*100)}%")
 
-            # ── Campaign info row
-            col_a, col_b, col_c = st.columns(3)
-            col_a.markdown(f"**Status:** {STATUS_EMOJI.get(campaign['status'],'')} `{campaign['status']}`")
-            col_b.markdown(f"**Started:** {campaign.get('started_at','—')[:19] if campaign.get('started_at') else '—'}")
-            col_c.markdown(f"**Rate:** {api_get('/settings',{}).get('calls_per_minute',10)} calls/min")
-
-            # ── Abort button
-            if is_running:
-                st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
-                if st.button("⛔ Abort Campaign"):
-                    api_post(f"/campaign/{selected_id}/abort")
-                    st.warning("Abort signal sent. Current dial will finish then stop.")
-                st.markdown('</div>', unsafe_allow_html=True)
+            # ── Info row + status + abort
+            col_info, col_act = st.columns([4, 1])
+            with col_info:
+                started = campaign.get("started_at", "")[:19] if campaign.get("started_at") else "—"
+                ended   = campaign.get("ended_at", "")[:19] if campaign.get("ended_at") else "—"
+                c_color, c_icon, c_lbl = STATUS_META.get(c_status, ("grey","?",c_status))
+                st.markdown(f"""
+                <div class="info-row">
+                  <span>Status <strong>{c_icon} {c_lbl}</strong></span>
+                  <span>Started <strong>{started}</strong></span>
+                  <span>Ended <strong>{ended}</strong></span>
+                  <span>Rate <strong>{api_get('/settings',{}).get('calls_per_minute',10)} calls/min</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_act:
+                if is_running:
+                    st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
+                    if st.button("⛔  Abort"):
+                        api_post(f"/campaign/{sel_id}/abort")
+                        st.warning("Abort signal sent.")
+                    st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown("---")
 
-            # ── Calls table
-            st.markdown('<p class="section-title">Call Log</p>', unsafe_allow_html=True)
+            # ── Call log tabs
+            tab_all, tab_ok, tab_fail = st.tabs(["All Calls", "✓ Completed", "✗ Failed / No Answer"])
             calls = campaign.get("calls", [])
-            if calls:
-                df = pd.DataFrame(calls)
-                display_cols = ["name","phone","status","duration","error"]
-                df = df[[c for c in display_cols if c in df.columns]]
-                df["status"] = df["status"].map(lambda s: f"{STATUS_EMOJI.get(s,'❓')} {s}")
-                df["duration"] = df["duration"].apply(lambda d: f"{int(d)}s" if d else "—")
-                df["error"] = df.get("error","").fillna("—")
+
+            def render_call_table(rows):
+                if not rows:
+                    st.markdown('<div class="empty-state" style="padding:30px;"><div class="empty-desc">No calls in this category</div></div>', unsafe_allow_html=True)
+                    return
+                df = pd.DataFrame(rows)
+                cols = [c for c in ["name","phone","status","duration","error"] if c in df.columns]
+                df   = df[cols].copy()
+                df["status"]   = df["status"].map(lambda s: STATUS_META.get(s,("","?",s))[1] + " " + STATUS_META.get(s,("","?",s))[2])
+                df["duration"] = df.get("duration", pd.Series()).apply(lambda d: f"{int(d)}s" if d else "—")
+                if "error" in df.columns:
+                    df["error"] = df["error"].fillna("—")
                 df.columns = [c.capitalize() for c in df.columns]
-                st.dataframe(df, use_container_width=True, height=400)
+                st.dataframe(df, use_container_width=True, height=380)
 
-                # Export
-                csv = pd.DataFrame(calls).to_csv(index=False)
-                st.download_button(
-                    "⬇️ Export call log CSV",
-                    data=csv,
-                    file_name=f"campaign_{selected_id[:8]}_calls.csv",
-                    mime="text/csv",
-                )
-            else:
-                st.caption("No calls dispatched yet.")
+            with tab_all:
+                render_call_table(calls)
+                if calls:
+                    csv = pd.DataFrame(calls).to_csv(index=False)
+                    st.download_button("⬇ Export CSV", data=csv,
+                        file_name=f"awaaz_campaign_{sel_id[:8]}.csv", mime="text/csv")
 
-            # ── Auto-refresh
+            with tab_ok:
+                render_call_table([c for c in calls if c.get("status") == "completed"])
+
+            with tab_fail:
+                render_call_table([c for c in calls if c.get("status") in ("failed","no-answer")])
+
+            # Auto-refresh
             if is_running:
                 time.sleep(3)
                 st.rerun()
 
+
+# ─── Assistants ───────────────────────────────────────────────────────────────
+
 elif st.session_state.tab == "Assistants":
-    st.markdown("## 🤖 Assistants")
-    st.markdown("Add and manage all your VAPI assistants. Select any one per campaign or call.")
-    st.markdown("---")
+
+    st.markdown("""
+    <div style="padding: 32px 0 24px 0;">
+      <div class="page-title">Voice Assistants</div>
+      <div class="page-sub">Manage all your VAPI bots — one per client, use case, or language</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     assistants = api_get("/assistants", [])
 
-    with st.expander("➕ Add New Assistant", expanded=len(assistants) == 0):
-        with st.form("add_assistant_form"):
-            st.markdown('<p class="section-title">New Assistant</p>', unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                new_name = st.text_input("Display Name", placeholder="e.g. Sales Bot, Support Bot")
-                new_asst_id = st.text_input("VAPI Assistant ID", placeholder="asst_...")
-            with c2:
-                new_desc = st.text_input("Description (optional)", placeholder="e.g. Handles product inquiries")
-                st.markdown("<br>", unsafe_allow_html=True)
-                add_btn = st.form_submit_button("➕ Add Assistant")
+    col_form, col_list = st.columns([2, 3], gap="large")
+
+    with col_form:
+        st.markdown('<div class="section-label">Add New Assistant</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-glow">', unsafe_allow_html=True)
+
+        with st.form("add_assistant"):
+            new_name   = st.text_input("Display Name", placeholder="e.g. Sales Bot EN")
+            new_id     = st.text_input("VAPI Assistant ID", placeholder="asst_xxxxxxxxxxxx")
+            new_desc   = st.text_input("Description", placeholder="e.g. English sales calls")
+            add_btn    = st.form_submit_button("➕  Add Assistant")
+
             if add_btn:
-                if not new_name or not new_asst_id:
+                if not new_name or not new_id:
                     st.warning("Name and Assistant ID are required.")
                 else:
                     data, err = api_post("/assistants", {
                         "name": new_name,
-                        "assistant_id": new_asst_id,
+                        "assistant_id": new_id,
                         "description": new_desc,
                     })
                     if err:
                         st.error(f"Failed: {err}")
                     else:
-                        st.success(f"✅ **{new_name}** added!")
+                        st.success(f"✅ {new_name} added!")
                         st.rerun()
 
-    st.markdown("---")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if not assistants:
-        st.info("No assistants yet. Add your first one above.")
-    else:
-        st.markdown(f'<p class="section-title">{len(assistants)} assistant{"s" if len(assistants) != 1 else ""}</p>', unsafe_allow_html=True)
-        for a in assistants:
-            col_name, col_id, col_desc, col_del = st.columns([2, 3, 3, 1])
-            with col_name:
-                st.markdown(f"**{a['name']}**")
-            with col_id:
-                st.code(a["assistant_id"], language=None)
-            with col_desc:
-                st.caption(a.get("description") or "—")
-            with col_del:
-                if st.button("🗑️", key=f"del_{a['id']}", help="Delete"):
-                    try:
-                        requests.delete(f"{API}/assistants/{a['id']}", timeout=5)
-                        st.success("Deleted.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(str(e))
-            st.markdown('<hr style="margin:6px 0;border-color:rgba(255,255,255,0.05)">', unsafe_allow_html=True)
+        st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="card">
+          <div class="section-label">Where to find your Assistant ID</div>
+          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--muted2);line-height:1.8;margin-top:8px;">
+            1. Go to <a href="https://vapi.ai" target="_blank" style="color:var(--gold);text-decoration:none;">vapi.ai</a><br>
+            2. Open <strong style="color:var(--text);">Assistants</strong><br>
+            3. Click your bot<br>
+            4. Copy the <strong style="color:var(--text);">Assistant ID</strong> at the top
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.info("💡 **Tip:** Each client or use case can have its own assistant. They all share the same Twilio number.")
+    with col_list:
+        st.markdown(f'<div class="section-label">{len(assistants)} assistant{"s" if len(assistants)!=1 else ""} configured</div>', unsafe_allow_html=True)
+
+        if not assistants:
+            st.markdown("""
+            <div class="empty-state" style="padding:60px 20px;">
+              <div class="empty-icon">🤖</div>
+              <div class="empty-title">No assistants yet</div>
+              <div class="empty-desc">Add your first voice bot using the form</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            for a in assistants:
+                col_a, col_b = st.columns([6, 1])
+                with col_a:
+                    st.markdown(f"""
+                    <div class="assistant-card">
+                      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                        <span style="font-size:20px;">🤖</span>
+                        <div>
+                          <div class="assistant-name">{a['name']}</div>
+                          <div class="assistant-desc">{a.get('description') or 'No description'}</div>
+                        </div>
+                      </div>
+                      <div class="assistant-id">ID: {a['assistant_id']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col_b:
+                    st.markdown('<div style="padding-top:10px">', unsafe_allow_html=True)
+                    if st.button("🗑", key=f"del_{a['id']}", help="Delete assistant"):
+                        try:
+                            requests.delete(f"{API}/assistants/{a['id']}", timeout=5)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(str(e))
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 
-# ─── Floating help ─────────────────────────────────────────────────────────────
+# ─── Settings ─────────────────────────────────────────────────────────────────
 
-st.markdown("---")
-st.markdown(
-    '<p style="font-size:12px;color:#374151;text-align:center;">VoiceBot Platform · VAPI + Twilio + Python · '
-    '<a href="https://docs.vapi.ai" style="color:#e8c547;text-decoration:none;">VAPI Docs</a></p>',
-    unsafe_allow_html=True
-)
+elif st.session_state.tab == "Settings":
+
+    st.markdown("""
+    <div style="padding: 32px 0 24px 0;">
+      <div class="page-title">Settings</div>
+      <div class="page-sub">Connect your VAPI and Twilio accounts</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    current = api_get("/settings", {})
+
+    col_main, col_guide = st.columns([3, 2], gap="large")
+
+    with col_main:
+        st.markdown('<div class="section-label">API Credentials</div>', unsafe_allow_html=True)
+
+        with st.form("settings_form"):
+            st.markdown('<div class="section-label" style="margin-top:0">VAPI</div>', unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                vapi_key  = st.text_input("API Key", value=current.get("vapi_api_key",""), type="password", placeholder="vapi_…")
+            with c2:
+                vapi_asst = st.text_input("Default Assistant ID", value=current.get("vapi_assistant_id",""), placeholder="asst_…")
+
+            st.markdown('<div class="section-label">Twilio / Phone</div>', unsafe_allow_html=True)
+            twilio_num = st.text_input(
+                "VAPI Phone Number ID",
+                value=current.get("twilio_phone_number",""),
+                placeholder="Phone Number ID from VAPI dashboard",
+                help="VAPI → Phone Numbers → copy the ID (not the +91 number)"
+            )
+
+            st.markdown('<div class="section-label">Rate Limiting</div>', unsafe_allow_html=True)
+            cpm = st.slider("Calls per minute", 1, 60, int(current.get("calls_per_minute", 10)))
+
+            st.markdown('<div class="btn-primary" style="margin-top:8px">', unsafe_allow_html=True)
+            saved = st.form_submit_button("💾  Save Settings")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            if saved:
+                data, err = api_post("/settings", {
+                    "vapi_api_key": vapi_key,
+                    "vapi_assistant_id": vapi_asst,
+                    "twilio_phone_number": twilio_num,
+                    "calls_per_minute": cpm,
+                })
+                if err:
+                    st.error(f"Save failed: {err}")
+                else:
+                    st.success("✅ Settings saved!")
+
+    with col_guide:
+        st.markdown('<div class="section-label">Setup Guide</div>', unsafe_allow_html=True)
+
+        with st.expander("🔑 Getting your VAPI API Key", expanded=True):
+            st.markdown("""
+            1. Go to **[vapi.ai](https://vapi.ai)** → sign in
+            2. Click **API Keys** in the sidebar
+            3. Generate or copy your key
+            4. Paste it in the API Key field ←
+            """)
+
+        with st.expander("📞 Linking your Twilio number"):
+            st.markdown("""
+            1. In VAPI → **Phone Numbers**
+            2. Import your Twilio number (or buy one)
+            3. Copy the **Phone Number ID** (not `+91…`)
+            4. Paste it in the field ←
+            """)
+
+        with st.expander("🔔 Webhook for live status"):
+            st.markdown("""
+            In VAPI → your Assistant → **Server URL**:
+            ```
+            https://your-domain.com/api/webhook/vapi
+            ```
+            For local dev use ngrok:
+            ```
+            ngrok http 4000
+            ```
+            """)
+
+
+# ─── Footer ───────────────────────────────────────────────────────────────────
+
+st.markdown("""
+<div style="margin-top:40px;padding-top:20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.1em;color:var(--muted);">आवाज़ · AWAAZ</span>
+  <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">VAPI + TWILIO + PYTHON</span>
+  <a href="https://docs.vapi.ai" target="_blank" style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;color:var(--gold);text-decoration:none;letter-spacing:0.06em;">VAPI DOCS →</a>
+</div>
+""", unsafe_allow_html=True)
