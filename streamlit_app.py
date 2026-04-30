@@ -267,6 +267,26 @@ def backend_alive():
     except:
         return False
 
+def get_assistant_options():
+    """Returns list of (label, assistant_id) tuples for selectbox."""
+    assistants = api_get("/assistants", [])
+    settings = api_get("/settings", {})
+    default_id = settings.get("vapi_assistant_id", "")
+    options = [("⭐ Default" + (f" ({default_id[:14]}...)" if default_id else " (not set)"), default_id)]
+    for a in assistants:
+        lbl = f"🤖 {a['name']}"
+        if a.get("description"):
+            lbl += f"  ·  {a['description']}"
+        options.append((lbl, a["assistant_id"]))
+    return options
+
+def assistant_selectbox(label, key):
+    options = get_assistant_options()
+    labels = [o[0] for o in options]
+    idx = st.selectbox(label, range(len(labels)), format_func=lambda i: labels[i], key=key)
+    return options[idx][1]
+
+
 # ─── Status color mapping ──────────────────────────────────────────────────
 
 STATUS_EMOJI = {
@@ -299,7 +319,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown('<p class="section-title">Navigation</p>', unsafe_allow_html=True)
 
-    pages = ["🚀 Campaign", "📞 Single Call", "📊 Dashboard", "⚙️ Settings"]
+    pages = ["🚀 Campaign", "📞 Single Call", "📊 Dashboard", "🤖 Assistants", "⚙️ Settings"]
     for p in pages:
         label = p.split(" ", 1)[1]
         if st.button(p, key=f"nav_{label}", use_container_width=True):
@@ -433,7 +453,7 @@ elif st.session_state.tab == "Campaign":
         st.markdown('<p class="section-title">2 · Campaign Settings</p>', unsafe_allow_html=True)
 
         campaign_name = st.text_input("Campaign Name", placeholder="e.g. April Follow-up")
-        override_asst = st.text_input("Override Assistant ID (optional)", placeholder="Leave blank to use default")
+        selected_asst_id = assistant_selectbox("Select Assistant", key="campaign_asst")
 
         settings = api_get("/settings", {})
         cpm = settings.get("calls_per_minute", 10)
@@ -454,7 +474,7 @@ elif st.session_state.tab == "Campaign":
                 data, err = api_post("/campaign/start", {
                     "campaign_name": campaign_name,
                     "contacts": contacts,
-                    "assistant_id": override_asst or None,
+                    "assistant_id": selected_asst_id or None,
                 })
                 if err:
                     st.error(f"Failed: {err}")
@@ -486,7 +506,7 @@ elif st.session_state.tab == "Single Call":
         name = st.text_input("Contact Name", placeholder="e.g. Rahul Verma")
         phone = st.text_input("Phone Number", placeholder="+919876543210")
     with col2:
-        asst = st.text_input("Assistant ID (optional)", placeholder="Uses default if blank")
+        single_asst_id = assistant_selectbox("Select Assistant", key="single_asst")
         st.markdown("<br>", unsafe_allow_html=True)
         call_btn = st.button("📞 Call Now")
 
@@ -499,7 +519,7 @@ elif st.session_state.tab == "Single Call":
             data, err = api_post("/call/single", {
                 "name": name or "Test Contact",
                 "phone": phone,
-                "assistant_id": asst or None,
+                "assistant_id": single_asst_id or None,
             })
             if err:
                 st.error(f"Call failed: {err}")
@@ -609,6 +629,67 @@ elif st.session_state.tab == "Dashboard":
             if is_running:
                 time.sleep(3)
                 st.rerun()
+
+elif st.session_state.tab == "Assistants":
+    st.markdown("## 🤖 Assistants")
+    st.markdown("Add and manage all your VAPI assistants. Select any one per campaign or call.")
+    st.markdown("---")
+
+    assistants = api_get("/assistants", [])
+
+    with st.expander("➕ Add New Assistant", expanded=len(assistants) == 0):
+        with st.form("add_assistant_form"):
+            st.markdown('<p class="section-title">New Assistant</p>', unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                new_name = st.text_input("Display Name", placeholder="e.g. Sales Bot, Support Bot")
+                new_asst_id = st.text_input("VAPI Assistant ID", placeholder="asst_...")
+            with c2:
+                new_desc = st.text_input("Description (optional)", placeholder="e.g. Handles product inquiries")
+                st.markdown("<br>", unsafe_allow_html=True)
+                add_btn = st.form_submit_button("➕ Add Assistant")
+            if add_btn:
+                if not new_name or not new_asst_id:
+                    st.warning("Name and Assistant ID are required.")
+                else:
+                    data, err = api_post("/assistants", {
+                        "name": new_name,
+                        "assistant_id": new_asst_id,
+                        "description": new_desc,
+                    })
+                    if err:
+                        st.error(f"Failed: {err}")
+                    else:
+                        st.success(f"✅ **{new_name}** added!")
+                        st.rerun()
+
+    st.markdown("---")
+
+    if not assistants:
+        st.info("No assistants yet. Add your first one above.")
+    else:
+        st.markdown(f'<p class="section-title">{len(assistants)} assistant{"s" if len(assistants) != 1 else ""}</p>', unsafe_allow_html=True)
+        for a in assistants:
+            col_name, col_id, col_desc, col_del = st.columns([2, 3, 3, 1])
+            with col_name:
+                st.markdown(f"**{a['name']}**")
+            with col_id:
+                st.code(a["assistant_id"], language=None)
+            with col_desc:
+                st.caption(a.get("description") or "—")
+            with col_del:
+                if st.button("🗑️", key=f"del_{a['id']}", help="Delete"):
+                    try:
+                        requests.delete(f"{API}/assistants/{a['id']}", timeout=5)
+                        st.success("Deleted.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(str(e))
+            st.markdown('<hr style="margin:6px 0;border-color:rgba(255,255,255,0.05)">', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.info("💡 **Tip:** Each client or use case can have its own assistant. They all share the same Twilio number.")
+
 
 # ─── Floating help ─────────────────────────────────────────────────────────────
 
