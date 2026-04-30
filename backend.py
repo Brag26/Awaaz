@@ -35,6 +35,7 @@ DB = {
         "twilio_phone_number": "",
         "calls_per_minute": 10,
     },
+    "assistants": {},  # assistant_id -> {id, name, assistant_id, description}
 }
 
 # ─── Models ───────────────────────────────────────────────────────────────────
@@ -59,6 +60,11 @@ class VAPIWebhook(BaseModel):
     call: Optional[dict] = None
     type: Optional[str] = None
 
+class Assistant(BaseModel):
+    name: str
+    assistant_id: str
+    description: Optional[str] = ""
+
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/settings")
@@ -69,6 +75,42 @@ def get_settings():
 def save_settings(s: Settings):
     DB["settings"].update(s.dict())
     return {"ok": True}
+
+# ─── Assistants CRUD ──────────────────────────────────────────────────────────
+
+@app.get("/api/assistants")
+def list_assistants():
+    return list(DB["assistants"].values())
+
+@app.post("/api/assistants")
+def add_assistant(a: Assistant):
+    record_id = str(uuid.uuid4())
+    DB["assistants"][record_id] = {
+        "id": record_id,
+        "name": a.name,
+        "assistant_id": a.assistant_id,
+        "description": a.description,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    return DB["assistants"][record_id]
+
+@app.delete("/api/assistants/{record_id}")
+def delete_assistant(record_id: str):
+    if record_id not in DB["assistants"]:
+        raise HTTPException(404, "Not found")
+    del DB["assistants"][record_id]
+    return {"ok": True}
+
+@app.put("/api/assistants/{record_id}")
+def update_assistant(record_id: str, a: Assistant):
+    if record_id not in DB["assistants"]:
+        raise HTTPException(404, "Not found")
+    DB["assistants"][record_id].update({
+        "name": a.name,
+        "assistant_id": a.assistant_id,
+        "description": a.description,
+    })
+    return DB["assistants"][record_id]
 
 # ─── VAPI Call Helper ─────────────────────────────────────────────────────────
 
