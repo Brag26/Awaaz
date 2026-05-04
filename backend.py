@@ -1,5 +1,5 @@
 """
-VoiceBot Platform — Python Backend
+Volant - VoiceBot Platform — Python Backend
 Handles VAPI call dispatch, status tracking, and data persistence.
 Run: uvicorn backend:app --reload --port 4000
 """
@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="VoiceBot API")
+app = FastAPI(title="Volant - VoiceBot API")
 
 app.add_middleware(
     CORSMiddleware,
