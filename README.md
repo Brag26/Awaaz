@@ -1,4 +1,4 @@
-# VoiceBot Platform 📞
+# Volant - VoiceBot Platform 📞
 
 A full-stack voice bot campaign platform built with **Streamlit + FastAPI + VAPI + Twilio**.
 
