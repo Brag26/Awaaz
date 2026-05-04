@@ -1,5 +1,5 @@
 """
-Awaaz — Voice Bot Platform
+Volant — Voice Bot Platform
 Premium Streamlit UI · VAPI + Twilio + Python
 """
 
@@ -12,7 +12,7 @@ from datetime import datetime
 # ─── Page config ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Awaaz",
+    page_title="Volant",
     page_icon="🎙️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -328,7 +328,7 @@ hr {
 }
 
 /* ── Custom classes ── */
-.awaaz-logo {
+.Volant-logo {
   font-family: 'Syne', sans-serif;
   font-size: 26px;
   font-weight: 800;
@@ -340,7 +340,7 @@ hr {
   display: inline-block;
 }
 
-.awaaz-tagline {
+.Volant-tagline {
   font-family: 'Instrument Sans', sans-serif;
   font-size: 11px;
   color: var(--muted);
@@ -685,9 +685,9 @@ with st.sidebar:
     # Logo
     st.markdown("""
     <div style="padding: 28px 20px 20px 20px; border-bottom: 1px solid var(--border);">
-      <div class="awaaz-logo">आवाज़</div>
-      <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.2em;color:var(--muted);margin-top:2px;text-transform:uppercase;">Awaaz</div>
-      <div class="awaaz-tagline" style="margin-top:6px;">Voice Bot Platform</div>
+      <div class="Volant-logo">आवाज़</div>
+      <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.2em;color:var(--muted);margin-top:2px;text-transform:uppercase;">Volant</div>
+      <div class="Volant-tagline" style="margin-top:6px;">Voice Bot Platform</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1094,7 +1094,7 @@ elif st.session_state.tab == "Dashboard":
                 if calls:
                     csv = pd.DataFrame(calls).to_csv(index=False)
                     st.download_button("⬇ Export CSV", data=csv,
-                        file_name=f"awaaz_campaign_{sel_id[:8]}.csv", mime="text/csv")
+                        file_name=f"Volant_campaign_{sel_id[:8]}.csv", mime="text/csv")
 
             with tab_ok:
                 render_call_table([c for c in calls if c.get("status") == "completed"])
@@ -1290,7 +1290,7 @@ elif st.session_state.tab == "Settings":
 
 st.markdown("""
 <div style="margin-top:40px;padding-top:20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.1em;color:var(--muted);">आवाज़ · AWAAZ</span>
+  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.1em;color:var(--muted);">आवाज़ · Volant</span>
   <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">VAPI + TWILIO + PYTHON</span>
   <a href="https://docs.vapi.ai" target="_blank" style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;color:var(--gold);text-decoration:none;letter-spacing:0.06em;">VAPI DOCS →</a>
 </div>
