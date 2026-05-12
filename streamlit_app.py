@@ -1,5 +1,5 @@
 """
-Awaaz — Voice Bot Platform
+Volant — Voice Bot Platform
 Streamlit UI · Role-based: super_admin | customer_admin | customer_user
 """
 
