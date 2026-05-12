@@ -1,351 +1,410 @@
 """
-Volant - VoiceBot Platform — Python Backend
-Handles VAPI call dispatch, status tracking, and data persistence.
+Awaaz — Backend API
+Roles: super_admin | customer_admin | customer_user
+Storage: SQLite (file-based, persists across restarts)
 Run: uvicorn backend:app --reload --port 4000
 """
 
-import os
-import json
-import time
-import threading
-import uuid
+import os, uuid, time, sqlite3, hashlib, threading
 from datetime import datetime
 from typing import Optional
 import requests
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-app = FastAPI(title="Volant - VoiceBot API")
+app = FastAPI(title="Awaaz API")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+DB_PATH = "awaaz.db"
+security = HTTPBearer(auto_error=False)
 
-# ─── In-memory store (replace with Supabase/Postgres in production) ───────────
-DB = {
-    "campaigns": {},   # campaign_id -> campaign data
-    "calls": {},       # call_id -> call data
-    "settings": {
-        "vapi_api_key": "",
-        "vapi_assistant_id": "",
-        "twilio_phone_number": "",
-        "calls_per_minute": 10,
-    },
-    "assistants": {},  # assistant_id -> {id, name, assistant_id, description}
-}
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT,
+        is_active INTEGER DEFAULT 1, vapi_api_key TEXT DEFAULT '',
+        vapi_assistant_id TEXT DEFAULT '', twilio_phone_number TEXT DEFAULT '',
+        calls_per_minute INTEGER DEFAULT 10
+    );
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY, customer_id TEXT, username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL, role TEXT NOT NULL, display_name TEXT,
+        created_at TEXT, is_active INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS assistants (
+        id TEXT PRIMARY KEY, customer_id TEXT, name TEXT NOT NULL,
+        assistant_id TEXT NOT NULL, description TEXT DEFAULT '', created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS campaigns (
+        id TEXT PRIMARY KEY, customer_id TEXT, name TEXT NOT NULL,
+        status TEXT DEFAULT 'starting', total INTEGER DEFAULT 0,
+        dispatched INTEGER DEFAULT 0, created_by TEXT, created_at TEXT,
+        started_at TEXT, ended_at TEXT, abort INTEGER DEFAULT 0, assistant_id TEXT DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS calls (
+        id TEXT PRIMARY KEY, campaign_id TEXT, customer_id TEXT,
+        name TEXT, phone TEXT, status TEXT DEFAULT 'pending',
+        vapi_call_id TEXT, started_at TEXT, ended_at TEXT,
+        duration REAL, transcript TEXT, error TEXT
+    );
+    """)
+    # Seed super admin
+    if not conn.execute("SELECT id FROM users WHERE role='super_admin' LIMIT 1").fetchone():
+        conn.execute(
+            "INSERT INTO users VALUES (?,NULL,?,?,'super_admin','Super Admin',?,1)",
+            (str(uuid.uuid4()), "superadmin",
+             hashlib.sha256(b"admin123").hexdigest(), datetime.utcnow().isoformat()))
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
+def row_dict(row): return dict(row) if row else None
+def rows_list(rows): return [dict(r) for r in rows]
+
+def get_user_by_token(token):
+    conn = get_db()
+    s = row_dict(conn.execute("SELECT user_id FROM sessions WHERE token=?", (token,)).fetchone())
+    if not s:
+        conn.close(); return None
+    u = row_dict(conn.execute("SELECT * FROM users WHERE id=?", (s["user_id"],)).fetchone())
+    conn.close(); return u
+
+def require_auth(cred: HTTPAuthorizationCredentials = Depends(security)):
+    if not cred: raise HTTPException(401, "Not authenticated")
+    u = get_user_by_token(cred.credentials)
+    if not u or not u["is_active"]: raise HTTPException(401, "Invalid session")
+    return u
+
+def require_super(u=Depends(require_auth)):
+    if u["role"] != "super_admin": raise HTTPException(403, "Super admin only")
+    return u
+
+def require_admin(u=Depends(require_auth)):
+    if u["role"] not in ("super_admin","customer_admin"): raise HTTPException(403, "Admin required")
+    return u
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 
-class Settings(BaseModel):
-    vapi_api_key: str
-    vapi_assistant_id: str
-    twilio_phone_number: str
-    calls_per_minute: int = 10
+class LoginReq(BaseModel):
+    username: str; password: str
 
-class BulkCallRequest(BaseModel):
-    campaign_name: str
-    contacts: list[dict]  # [{name, phone}]
-    assistant_id: Optional[str] = None
-
-class SingleCallRequest(BaseModel):
+class CustomerReq(BaseModel):
     name: str
-    phone: str
-    assistant_id: Optional[str] = None
 
-class VAPIWebhook(BaseModel):
-    call: Optional[dict] = None
-    type: Optional[str] = None
+class UserReq(BaseModel):
+    username: str; password: str; display_name: str; role: str
 
-class Assistant(BaseModel):
-    name: str
-    assistant_id: str
-    description: Optional[str] = ""
+class SettingsReq(BaseModel):
+    vapi_api_key: str; vapi_assistant_id: str
+    twilio_phone_number: str; calls_per_minute: int = 10
+
+class AssistantReq(BaseModel):
+    name: str; assistant_id: str; description: Optional[str] = ""
+
+class BulkCallReq(BaseModel):
+    campaign_name: str; contacts: list[dict]; assistant_id: Optional[str] = None
+
+class SingleCallReq(BaseModel):
+    name: str; phone: str; assistant_id: Optional[str] = None
+
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+
+@app.post("/api/auth/login")
+def login(req: LoginReq):
+    conn = get_db()
+    u = row_dict(conn.execute(
+        "SELECT * FROM users WHERE username=? AND is_active=1", (req.username,)).fetchone())
+    conn.close()
+    if not u or u["password_hash"] != hash_pw(req.password):
+        raise HTTPException(401, "Invalid credentials")
+    token = str(uuid.uuid4())
+    conn = get_db()
+    conn.execute("INSERT INTO sessions VALUES (?,?,?)",
+                 (token, u["id"], datetime.utcnow().isoformat()))
+    conn.commit(); conn.close()
+    return {"token": token,
+            "user": {k: u[k] for k in ("id","username","role","display_name","customer_id")}}
+
+@app.post("/api/auth/logout")
+def logout(cred: HTTPAuthorizationCredentials = Depends(security)):
+    if cred:
+        conn = get_db()
+        conn.execute("DELETE FROM sessions WHERE token=?", (cred.credentials,))
+        conn.commit(); conn.close()
+    return {"ok": True}
+
+@app.get("/api/auth/me")
+def me(u=Depends(require_auth)):
+    return {k: u[k] for k in ("id","username","role","display_name","customer_id")}
+
+# ─── Customers ────────────────────────────────────────────────────────────────
+
+@app.get("/api/customers")
+def list_customers(u=Depends(require_super)):
+    conn = get_db()
+    rows = rows_list(conn.execute("SELECT * FROM customers ORDER BY created_at DESC").fetchall())
+    for r in rows:
+        r["user_count"] = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE customer_id=?", (r["id"],)).fetchone()[0]
+        r["campaign_count"] = conn.execute(
+            "SELECT COUNT(*) FROM campaigns WHERE customer_id=?", (r["id"],)).fetchone()[0]
+    conn.close(); return rows
+
+@app.post("/api/customers")
+def create_customer(req: CustomerReq, u=Depends(require_super)):
+    cid = str(uuid.uuid4())
+    conn = get_db()
+    conn.execute("INSERT INTO customers (id,name,created_at,is_active) VALUES (?,?,?,1)",
+                 (cid, req.name, datetime.utcnow().isoformat()))
+    conn.commit(); conn.close()
+    return {"id": cid, "name": req.name}
+
+@app.delete("/api/customers/{cid}")
+def delete_customer(cid: str, u=Depends(require_super)):
+    conn = get_db()
+    conn.execute("UPDATE customers SET is_active=0 WHERE id=?", (cid,))
+    conn.commit(); conn.close(); return {"ok": True}
+
+# ─── Users ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/customers/{cid}/users")
+def list_users(cid: str, u=Depends(require_admin)):
+    if u["role"] == "customer_admin" and u["customer_id"] != cid:
+        raise HTTPException(403, "Access denied")
+    conn = get_db()
+    rows = rows_list(conn.execute(
+        "SELECT id,username,role,display_name,created_at,is_active FROM users WHERE customer_id=?",
+        (cid,)).fetchall())
+    conn.close(); return rows
+
+@app.post("/api/customers/{cid}/users")
+def create_user(cid: str, req: UserReq, u=Depends(require_admin)):
+    if u["role"] == "customer_admin" and u["customer_id"] != cid:
+        raise HTTPException(403, "Access denied")
+    if req.role not in ("customer_admin","customer_user"):
+        raise HTTPException(400, "Role must be customer_admin or customer_user")
+    uid = str(uuid.uuid4())
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users VALUES (?,?,?,?,?,?,?,1)",
+            (uid, cid, req.username, hash_pw(req.password),
+             req.role, req.display_name, datetime.utcnow().isoformat()))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close(); raise HTTPException(400, "Username already taken")
+    conn.close(); return {"id": uid}
+
+@app.delete("/api/customers/{cid}/users/{uid}")
+def delete_user(cid: str, uid: str, u=Depends(require_admin)):
+    conn = get_db()
+    conn.execute("UPDATE users SET is_active=0 WHERE id=? AND customer_id=?", (uid, cid))
+    conn.commit(); conn.close(); return {"ok": True}
 
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/settings")
-def get_settings():
-    return DB["settings"]
+def get_settings(u=Depends(require_auth)):
+    cid = u["customer_id"]
+    if not cid: return {}
+    conn = get_db()
+    r = row_dict(conn.execute("SELECT * FROM customers WHERE id=?", (cid,)).fetchone())
+    conn.close(); return r or {}
 
 @app.post("/api/settings")
-def save_settings(s: Settings):
-    DB["settings"].update(s.dict())
-    return {"ok": True}
+def save_settings(req: SettingsReq, u=Depends(require_admin)):
+    conn = get_db()
+    conn.execute("""UPDATE customers SET vapi_api_key=?,vapi_assistant_id=?,
+                    twilio_phone_number=?,calls_per_minute=? WHERE id=?""",
+                 (req.vapi_api_key, req.vapi_assistant_id,
+                  req.twilio_phone_number, req.calls_per_minute, u["customer_id"]))
+    conn.commit(); conn.close(); return {"ok": True}
 
-# ─── Assistants CRUD ──────────────────────────────────────────────────────────
+# ─── Assistants ───────────────────────────────────────────────────────────────
 
 @app.get("/api/assistants")
-def list_assistants():
-    return list(DB["assistants"].values())
+def list_assistants(u=Depends(require_auth)):
+    conn = get_db()
+    rows = rows_list(conn.execute(
+        "SELECT * FROM assistants WHERE customer_id=? ORDER BY created_at DESC",
+        (u["customer_id"],)).fetchall())
+    conn.close(); return rows
 
 @app.post("/api/assistants")
-def add_assistant(a: Assistant):
-    record_id = str(uuid.uuid4())
-    DB["assistants"][record_id] = {
-        "id": record_id,
-        "name": a.name,
-        "assistant_id": a.assistant_id,
-        "description": a.description,
-        "created_at": datetime.utcnow().isoformat(),
-    }
-    return DB["assistants"][record_id]
+def add_assistant(req: AssistantReq, u=Depends(require_admin)):
+    rid = str(uuid.uuid4())
+    conn = get_db()
+    conn.execute("INSERT INTO assistants VALUES (?,?,?,?,?,?)",
+                 (rid, u["customer_id"], req.name, req.assistant_id,
+                  req.description, datetime.utcnow().isoformat()))
+    conn.commit(); conn.close(); return {"id": rid}
 
-@app.delete("/api/assistants/{record_id}")
-def delete_assistant(record_id: str):
-    if record_id not in DB["assistants"]:
-        raise HTTPException(404, "Not found")
-    del DB["assistants"][record_id]
-    return {"ok": True}
+@app.delete("/api/assistants/{rid}")
+def delete_assistant(rid: str, u=Depends(require_admin)):
+    conn = get_db()
+    conn.execute("DELETE FROM assistants WHERE id=? AND customer_id=?", (rid, u["customer_id"]))
+    conn.commit(); conn.close(); return {"ok": True}
 
-@app.put("/api/assistants/{record_id}")
-def update_assistant(record_id: str, a: Assistant):
-    if record_id not in DB["assistants"]:
-        raise HTTPException(404, "Not found")
-    DB["assistants"][record_id].update({
-        "name": a.name,
-        "assistant_id": a.assistant_id,
-        "description": a.description,
-    })
-    return DB["assistants"][record_id]
+# ─── VAPI + Campaign ──────────────────────────────────────────────────────────
 
-# ─── VAPI Call Helper ─────────────────────────────────────────────────────────
+def vapi_call(phone, name, asst_id, api_key, phone_num_id):
+    r = requests.post("https://api.vapi.ai/call",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"assistantId": asst_id, "customer": {"number": phone, "name": name},
+              "phoneNumberId": phone_num_id}, timeout=15)
+    r.raise_for_status(); return r.json()
 
-def vapi_create_call(phone: str, name: str, assistant_id: str, api_key: str, twilio_number: str) -> dict:
-    """Trigger a single outbound call via VAPI."""
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "assistantId": assistant_id,
-        "customer": {
-            "number": phone,
-            "name": name,
-        },
-        "phoneNumberId": twilio_number,  # Your VAPI phone number ID linked to Twilio
-    }
-    resp = requests.post("https://api.vapi.ai/call", headers=headers, json=payload, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+def run_campaign(camp_id, customer_id):
+    conn = get_db()
+    cust = row_dict(conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone())
+    camp = row_dict(conn.execute("SELECT * FROM campaigns WHERE id=?", (camp_id,)).fetchone())
+    contacts = rows_list(conn.execute("SELECT * FROM calls WHERE campaign_id=?", (camp_id,)).fetchall())
+    conn.close()
 
+    api_key   = cust["vapi_api_key"]
+    asst_id   = camp["assistant_id"] or cust["vapi_assistant_id"]
+    phone_num = cust["twilio_phone_number"]
+    delay     = 60.0 / max(cust["calls_per_minute"], 1)
 
-def vapi_get_call(call_id: str, api_key: str) -> dict:
-    """Fetch call status from VAPI."""
-    headers = {"Authorization": f"Bearer {api_key}"}
-    resp = requests.get(f"https://api.vapi.ai/call/{call_id}", headers=headers, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+    conn = get_db()
+    conn.execute("UPDATE campaigns SET status='running',started_at=? WHERE id=?",
+                 (datetime.utcnow().isoformat(), camp_id))
+    conn.commit(); conn.close()
 
-
-# ─── Background bulk caller ───────────────────────────────────────────────────
-
-def run_bulk_campaign(campaign_id: str):
-    """Background thread: dispatches calls with rate limiting."""
-    campaign = DB["campaigns"][campaign_id]
-    settings = DB["settings"]
-    api_key = settings["vapi_api_key"]
-    assistant_id = campaign.get("assistant_id") or settings["vapi_assistant_id"]
-    twilio_number = settings["twilio_phone_number"]
-    calls_per_minute = settings["calls_per_minute"]
-    delay = 60.0 / max(calls_per_minute, 1)
-
-    campaign["status"] = "running"
-    campaign["started_at"] = datetime.utcnow().isoformat()
-
-    for contact in campaign["contacts"]:
-        if campaign.get("abort"):
-            break
-
-        call_id = str(uuid.uuid4())
-        call_record = {
-            "id": call_id,
-            "campaign_id": campaign_id,
-            "name": contact["name"],
-            "phone": contact["phone"],
-            "status": "queued",
-            "vapi_call_id": None,
-            "started_at": datetime.utcnow().isoformat(),
-            "ended_at": None,
-            "duration": None,
-            "transcript": None,
-            "error": None,
-        }
-        DB["calls"][call_id] = call_record
-        contact["call_id"] = call_id
-
+    for c in contacts:
+        conn = get_db()
+        abort = conn.execute("SELECT abort FROM campaigns WHERE id=?", (camp_id,)).fetchone()[0]
+        conn.close()
+        if abort: break
         try:
-            result = vapi_create_call(
-                phone=contact["phone"],
-                name=contact["name"],
-                assistant_id=assistant_id,
-                api_key=api_key,
-                twilio_number=twilio_number,
-            )
-            call_record["vapi_call_id"] = result.get("id")
-            call_record["status"] = "dialing"
+            res = vapi_call(c["phone"], c["name"], asst_id, api_key, phone_num)
+            conn = get_db()
+            conn.execute("UPDATE calls SET status='dialing',vapi_call_id=? WHERE id=?",
+                         (res.get("id"), c["id"]))
         except Exception as e:
-            call_record["status"] = "failed"
-            call_record["error"] = str(e)
-
-        campaign["dispatched"] = campaign.get("dispatched", 0) + 1
+            conn = get_db()
+            conn.execute("UPDATE calls SET status='failed',error=? WHERE id=?", (str(e), c["id"]))
+        conn.execute("UPDATE campaigns SET dispatched=dispatched+1 WHERE id=?", (camp_id,))
+        conn.commit(); conn.close()
         time.sleep(delay)
 
-    if not campaign.get("abort"):
-        campaign["status"] = "completed"
-    else:
-        campaign["status"] = "aborted"
-
-    campaign["ended_at"] = datetime.utcnow().isoformat()
-
-
-# ─── Campaign endpoints ───────────────────────────────────────────────────────
+    conn = get_db()
+    abort = conn.execute("SELECT abort FROM campaigns WHERE id=?", (camp_id,)).fetchone()[0]
+    conn.execute("UPDATE campaigns SET status=?,ended_at=? WHERE id=?",
+                 ("aborted" if abort else "completed", datetime.utcnow().isoformat(), camp_id))
+    conn.commit(); conn.close()
 
 @app.post("/api/campaign/start")
-def start_campaign(req: BulkCallRequest, background_tasks: BackgroundTasks):
-    settings = DB["settings"]
-    if not settings["vapi_api_key"]:
-        raise HTTPException(400, "VAPI API key not configured")
-    if not settings["vapi_assistant_id"] and not req.assistant_id:
-        raise HTTPException(400, "Assistant ID not configured")
-
-    campaign_id = str(uuid.uuid4())
-    DB["campaigns"][campaign_id] = {
-        "id": campaign_id,
-        "name": req.campaign_name,
-        "contacts": [{"name": c.get("name", ""), "phone": c["phone"], "call_id": None} for c in req.contacts],
-        "assistant_id": req.assistant_id,
-        "status": "starting",
-        "total": len(req.contacts),
-        "dispatched": 0,
-        "created_at": datetime.utcnow().isoformat(),
-        "started_at": None,
-        "ended_at": None,
-        "abort": False,
-    }
-    background_tasks.add_task(run_bulk_campaign, campaign_id)
-    return {"campaign_id": campaign_id}
-
-
-@app.get("/api/campaign/{campaign_id}")
-def get_campaign(campaign_id: str):
-    c = DB["campaigns"].get(campaign_id)
-    if not c:
-        raise HTTPException(404, "Campaign not found")
-    calls = [DB["calls"][cid["call_id"]] for cid in c["contacts"] if cid.get("call_id") and cid["call_id"] in DB["calls"]]
-    stats = {
-        "total": c["total"],
-        "dispatched": c["dispatched"],
-        "completed": sum(1 for x in calls if x["status"] == "completed"),
-        "failed": sum(1 for x in calls if x["status"] == "failed"),
-        "dialing": sum(1 for x in calls if x["status"] in ("dialing", "in-progress", "queued")),
-        "no_answer": sum(1 for x in calls if x["status"] == "no-answer"),
-    }
-    return {**c, "stats": stats, "calls": calls}
-
-
-@app.post("/api/campaign/{campaign_id}/abort")
-def abort_campaign(campaign_id: str):
-    c = DB["campaigns"].get(campaign_id)
-    if not c:
-        raise HTTPException(404, "Not found")
-    c["abort"] = True
-    return {"ok": True}
-
+def start_campaign(req: BulkCallReq, u=Depends(require_admin)):
+    conn = get_db()
+    cust = row_dict(conn.execute("SELECT * FROM customers WHERE id=?", (u["customer_id"],)).fetchone())
+    conn.close()
+    if not cust or not cust["vapi_api_key"]:
+        raise HTTPException(400, "Configure VAPI API key in Settings first")
+    camp_id = str(uuid.uuid4())
+    conn = get_db()
+    conn.execute("""INSERT INTO campaigns (id,customer_id,name,status,total,dispatched,
+                    created_by,created_at,assistant_id) VALUES (?,?,?,'starting',?,?,?,?,?)""",
+                 (camp_id, u["customer_id"], req.campaign_name, len(req.contacts), 0,
+                  u["id"], datetime.utcnow().isoformat(), req.assistant_id or ""))
+    for c in req.contacts:
+        conn.execute("""INSERT INTO calls (id,campaign_id,customer_id,name,phone,status,started_at)
+                        VALUES (?,?,?,?,?,'pending',?)""",
+                     (str(uuid.uuid4()), camp_id, u["customer_id"],
+                      c.get("name",""), c["phone"], datetime.utcnow().isoformat()))
+    conn.commit(); conn.close()
+    threading.Thread(target=run_campaign, args=(camp_id, u["customer_id"]), daemon=True).start()
+    return {"campaign_id": camp_id}
 
 @app.get("/api/campaigns")
-def list_campaigns():
-    return list(DB["campaigns"].values())
+def list_campaigns(u=Depends(require_auth)):
+    conn = get_db()
+    rows = rows_list(conn.execute(
+        "SELECT * FROM campaigns WHERE customer_id=? ORDER BY created_at DESC",
+        (u["customer_id"],)).fetchall())
+    conn.close(); return rows
 
+@app.get("/api/campaign/{cid}")
+def get_campaign(cid: str, u=Depends(require_auth)):
+    conn = get_db()
+    camp  = row_dict(conn.execute("SELECT * FROM campaigns WHERE id=?", (cid,)).fetchone())
+    calls = rows_list(conn.execute("SELECT * FROM calls WHERE campaign_id=?", (cid,)).fetchall())
+    conn.close()
+    if not camp: raise HTTPException(404, "Not found")
+    camp["calls"]  = calls
+    camp["stats"]  = {
+        "total":     camp["total"],
+        "dispatched":camp["dispatched"],
+        "completed": sum(1 for c in calls if c["status"]=="completed"),
+        "failed":    sum(1 for c in calls if c["status"]=="failed"),
+        "no_answer": sum(1 for c in calls if c["status"]=="no-answer"),
+        "dialing":   sum(1 for c in calls if c["status"] in ("dialing","in-progress","queued")),
+    }
+    return camp
 
-# ─── Single call ──────────────────────────────────────────────────────────────
+@app.post("/api/campaign/{cid}/abort")
+def abort_campaign(cid: str, u=Depends(require_admin)):
+    conn = get_db()
+    conn.execute("UPDATE campaigns SET abort=1 WHERE id=?", (cid,))
+    conn.commit(); conn.close(); return {"ok": True}
 
 @app.post("/api/call/single")
-def single_call(req: SingleCallRequest):
-    settings = DB["settings"]
-    if not settings["vapi_api_key"]:
-        raise HTTPException(400, "VAPI API key not configured")
-
+def single_call(req: SingleCallReq, u=Depends(require_admin)):
+    conn = get_db()
+    cust = row_dict(conn.execute("SELECT * FROM customers WHERE id=?", (u["customer_id"],)).fetchone())
+    conn.close()
+    asst = req.assistant_id or cust["vapi_assistant_id"]
     try:
-        result = vapi_create_call(
-            phone=req.phone,
-            name=req.name,
-            assistant_id=req.assistant_id or settings["vapi_assistant_id"],
-            api_key=settings["vapi_api_key"],
-            twilio_number=settings["twilio_phone_number"],
-        )
-        call_id = str(uuid.uuid4())
-        DB["calls"][call_id] = {
-            "id": call_id,
-            "campaign_id": None,
-            "name": req.name,
-            "phone": req.phone,
-            "status": "dialing",
-            "vapi_call_id": result.get("id"),
-            "started_at": datetime.utcnow().isoformat(),
-            "ended_at": None,
-            "duration": None,
-            "transcript": None,
-            "error": None,
-        }
-        return {"ok": True, "call_id": call_id, "vapi_call_id": result.get("id")}
+        res = vapi_call(req.phone, req.name, asst, cust["vapi_api_key"], cust["twilio_phone_number"])
+        cid = str(uuid.uuid4())
+        conn = get_db()
+        conn.execute("""INSERT INTO calls (id,campaign_id,customer_id,name,phone,status,vapi_call_id,started_at)
+                        VALUES (?,NULL,?,?,?,'dialing',?,?)""",
+                     (cid, u["customer_id"], req.name, req.phone,
+                      res.get("id"), datetime.utcnow().isoformat()))
+        conn.commit(); conn.close()
+        return {"ok": True, "vapi_call_id": res.get("id")}
     except Exception as e:
         raise HTTPException(500, str(e))
 
-
-# ─── VAPI Webhook (status updates) ───────────────────────────────────────────
+@app.get("/api/calls")
+def list_calls(u=Depends(require_auth)):
+    conn = get_db()
+    rows = rows_list(conn.execute(
+        "SELECT * FROM calls WHERE customer_id=? AND campaign_id IS NULL ORDER BY started_at DESC LIMIT 20",
+        (u["customer_id"],)).fetchall())
+    conn.close(); return rows
 
 @app.post("/api/webhook/vapi")
 async def vapi_webhook(payload: dict):
-    """
-    VAPI sends status updates here. Configure this URL in your VAPI dashboard:
-    https://yourdomain.com/api/webhook/vapi
-    """
-    call_data = payload.get("call", {})
-    vapi_call_id = call_data.get("id")
-    status = payload.get("type", "")  # call-start, call-end, transcript, etc.
-
-    # Find matching call record
-    for call in DB["calls"].values():
-        if call.get("vapi_call_id") == vapi_call_id:
-            if status == "call-start":
-                call["status"] = "in-progress"
-            elif status == "call-end":
-                ended = call_data.get("endedReason", "completed")
-                call["status"] = "completed" if ended not in ("no-answer", "failed") else ended
-                call["ended_at"] = datetime.utcnow().isoformat()
-                call["duration"] = call_data.get("duration")
-                call["transcript"] = call_data.get("transcript")
-            break
-
-    return {"ok": True}
-
-
-# ─── Sync call status from VAPI (polling fallback) ───────────────────────────
-
-@app.post("/api/sync/{call_id}")
-def sync_call(call_id: str):
-    call = DB["calls"].get(call_id)
-    if not call or not call.get("vapi_call_id"):
-        raise HTTPException(404, "Call not found")
-    try:
-        data = vapi_get_call(call["vapi_call_id"], DB["settings"]["vapi_api_key"])
-        call["status"] = data.get("status", call["status"])
-        call["duration"] = data.get("duration", call["duration"])
-        call["transcript"] = data.get("transcript", call["transcript"])
-        return call
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-
-@app.get("/api/calls")
-def list_calls():
-    return list(DB["calls"].values())
-
+    vid = payload.get("call",{}).get("id")
+    evt = payload.get("type","")
+    conn = get_db()
+    call = row_dict(conn.execute("SELECT id FROM calls WHERE vapi_call_id=?", (vid,)).fetchone())
+    if call:
+        if evt == "call-start":
+            conn.execute("UPDATE calls SET status='in-progress' WHERE id=?", (call["id"],))
+        elif evt == "call-end":
+            er = payload.get("call",{}).get("endedReason","completed")
+            s  = "completed" if er not in ("no-answer","failed") else er
+            conn.execute("UPDATE calls SET status=?,ended_at=?,duration=?,transcript=? WHERE id=?",
+                         (s, datetime.utcnow().isoformat(),
+                          payload.get("call",{}).get("duration"),
+                          payload.get("call",{}).get("transcript"), call["id"]))
+    conn.commit(); conn.close(); return {"ok": True}
 
 @app.get("/health")
-def health():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+def health(): return {"status": "ok"}
