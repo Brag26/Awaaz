@@ -14,10 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-app = FastAPI(title="Awaaz API")
+app = FastAPI(title="Volant API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-DB_PATH = "awaaz.db"
+DB_PATH = "Volant.db"
 security = HTTPBearer(auto_error=False)
 
 def get_db():
