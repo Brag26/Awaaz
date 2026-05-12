@@ -1,729 +1,328 @@
 """
-Volant — Voice Bot Platform
-Premium Streamlit UI · VAPI + Twilio + Python
+Awaaz — Voice Bot Platform
+Streamlit UI · Role-based: super_admin | customer_admin | customer_user
 """
 
 import streamlit as st
 import pandas as pd
 import requests
 import time
-from datetime import datetime
 
-# ─── Page config ──────────────────────────────────────────────────────────────
-
-st.set_page_config(
-    page_title="Volant",
-    page_icon="🎙️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="Awaaz", page_icon="🎙️", layout="wide",
+                   initial_sidebar_state="expanded")
 
 API = "http://localhost:4000/api"
 
-# ─── Premium CSS ──────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  CSS
+# ══════════════════════════════════════════════════════════════════════════════
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap');
-
-/* ── Reset & Base ── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Instrument+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap');
 
 :root {
-  --bg:        #080b10;
-  --bg2:       #0d1117;
-  --bg3:       #111720;
-  --border:    rgba(255,255,255,0.07);
-  --border2:   rgba(255,255,255,0.12);
-  --text:      #e8e3da;
-  --muted:     #5a6478;
-  --muted2:    #8892a4;
-  --gold:      #e8b84b;
-  --gold2:     #f5d07a;
-  --gold-glow: rgba(232,184,75,0.15);
-  --teal:      #3ecfb2;
-  --red:       #e85555;
-  --blue:      #4d9fff;
-  --green:     #3ecf8e;
-  --radius:    14px;
-  --radius-sm: 8px;
+  --bg:    #07090e; --bg2: #0c1018; --bg3: #101520;
+  --b:     rgba(255,255,255,0.07); --b2: rgba(255,255,255,0.13);
+  --txt:   #e6e1d8; --mut: #56637a; --mut2: #8491a6;
+  --gold:  #e8b84b; --gold2: #f5cf70;
+  --teal:  #3ecfb2; --red: #e85555; --blue: #4d9fff; --green: #3ecf8e;
+  --r:     14px;    --rs: 8px;
 }
 
-html, body, [class*="css"] {
-  font-family: 'Instrument Sans', sans-serif;
-  background: var(--bg) !important;
-  color: var(--text);
-}
+html, body, [class*="css"] { font-family:'Instrument Sans',sans-serif; background:var(--bg)!important; color:var(--txt); }
+.stApp { background:var(--bg)!important; background-image:radial-gradient(ellipse 90% 50% at 50% -15%,rgba(232,184,75,.05),transparent),radial-gradient(ellipse 60% 40% at 85% 85%,rgba(62,207,178,.03),transparent); min-height:100vh; }
+.block-container { padding:0 2rem 3rem!important; max-width:1440px!important; }
 
-.stApp {
-  background: var(--bg) !important;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232,184,75,0.06), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(62,207,178,0.04), transparent);
-  min-height: 100vh;
-}
+/* Sidebar */
+[data-testid="stSidebar"] { background:var(--bg2)!important; border-right:1px solid var(--b)!important; }
+section[data-testid="stSidebar"] .block-container { padding:0!important; }
+#MainMenu,footer,header,[data-testid="stToolbar"],.stDeployButton { visibility:hidden; display:none; }
 
-.block-container {
-  padding: 0 2rem 3rem 2rem !important;
-  max-width: 1440px !important;
+/* All buttons base */
+.stButton>button {
+  font-family:'Syne',sans-serif!important; font-weight:600!important; font-size:13px!important;
+  letter-spacing:.04em!important; border-radius:var(--rs)!important;
+  border:1px solid var(--b2)!important; background:rgba(255,255,255,.04)!important;
+  color:var(--txt)!important; transition:all .18s!important; padding:10px 20px!important; width:100%!important;
 }
+.stButton>button:hover { background:rgba(255,255,255,.08)!important; border-color:rgba(255,255,255,.22)!important; transform:translateY(-1px)!important; }
 
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-  background: var(--bg2) !important;
-  border-right: 1px solid var(--border) !important;
-  padding: 0 !important;
-}
-[data-testid="stSidebar"] > div:first-child {
-  padding: 0;
-}
-section[data-testid="stSidebar"] .block-container {
-  padding: 0 !important;
-}
+.btn-gold .stButton>button { background:var(--gold)!important; color:#07090e!important; border-color:var(--gold)!important; font-weight:700!important; box-shadow:0 0 22px rgba(232,184,75,.25)!important; }
+.btn-gold .stButton>button:hover { background:var(--gold2)!important; box-shadow:0 0 34px rgba(232,184,75,.4)!important; }
 
-/* ── Hide Streamlit chrome ── */
-#MainMenu, footer, header { visibility: hidden; }
-[data-testid="stToolbar"] { display: none; }
-.stDeployButton { display: none; }
+.btn-red .stButton>button { background:rgba(232,85,85,.1)!important; color:var(--red)!important; border-color:rgba(232,85,85,.3)!important; }
+.btn-red .stButton>button:hover { background:rgba(232,85,85,.2)!important; }
 
-/* ── Buttons ── */
-.stButton > button {
-  font-family: 'Syne', sans-serif !important;
-  font-weight: 600 !important;
-  font-size: 13px !important;
-  letter-spacing: 0.04em !important;
-  border-radius: var(--radius-sm) !important;
-  border: 1px solid var(--border2) !important;
-  background: rgba(255,255,255,0.04) !important;
-  color: var(--text) !important;
-  transition: all 0.18s ease !important;
-  padding: 10px 20px !important;
-  width: 100% !important;
-}
-.stButton > button:hover {
-  background: rgba(255,255,255,0.08) !important;
-  border-color: rgba(255,255,255,0.2) !important;
-  transform: translateY(-1px) !important;
-}
+.btn-ghost .stButton>button { background:transparent!important; border:none!important; color:var(--mut2)!important; font-family:'Instrument Sans',sans-serif!important; font-size:14px!important; font-weight:400!important; padding:10px 20px!important; border-radius:0!important; letter-spacing:0!important; text-align:left!important; justify-content:flex-start!important; }
+.btn-ghost .stButton>button:hover { background:rgba(255,255,255,.04)!important; color:var(--txt)!important; transform:none!important; }
+.btn-active .stButton>button { background:rgba(232,184,75,.08)!important; color:var(--gold)!important; border-left:2px solid var(--gold)!important; border-radius:0!important; }
 
-/* Primary gold button */
-.btn-primary .stButton > button {
-  background: var(--gold) !important;
-  color: #080b10 !important;
-  border-color: var(--gold) !important;
-  font-weight: 700 !important;
-  box-shadow: 0 0 24px rgba(232,184,75,0.25) !important;
+/* Inputs */
+.stTextInput>div>div>input,.stNumberInput>div>div>input,.stPasswordInput>div>div>input {
+  background:var(--bg3)!important; border:1px solid var(--b)!important; border-radius:var(--rs)!important;
+  color:var(--txt)!important; font-family:'Space Mono',monospace!important; font-size:12px!important; padding:10px 14px!important; transition:border-color .2s!important;
 }
-.btn-primary .stButton > button:hover {
-  background: var(--gold2) !important;
-  box-shadow: 0 0 36px rgba(232,184,75,0.4) !important;
-  transform: translateY(-2px) !important;
+.stTextInput>div>div>input:focus,.stNumberInput>div>div>input:focus { border-color:var(--gold)!important; box-shadow:0 0 0 3px rgba(232,184,75,.1)!important; }
+.stTextInput label,.stNumberInput label,.stSelectbox label,.stSlider label,.stFileUploader label,.stPasswordInput label {
+  font-family:'Syne',sans-serif!important; font-size:11px!important; font-weight:600!important;
+  letter-spacing:.1em!important; text-transform:uppercase!important; color:var(--mut2)!important;
 }
+.stSelectbox>div>div { background:var(--bg3)!important; border:1px solid var(--b)!important; border-radius:var(--rs)!important; color:var(--txt)!important; font-family:'Space Mono',monospace!important; font-size:12px!important; }
+.stSlider>div>div>div>div { background:var(--gold)!important; }
+.stProgress>div>div>div>div { background:linear-gradient(90deg,var(--gold),var(--teal))!important; border-radius:99px!important; }
+.stProgress>div>div>div { background:rgba(255,255,255,.06)!important; border-radius:99px!important; }
 
-/* Danger button */
-.btn-danger .stButton > button {
-  background: rgba(232,85,85,0.1) !important;
-  color: var(--red) !important;
-  border-color: rgba(232,85,85,0.3) !important;
-}
-.btn-danger .stButton > button:hover {
-  background: rgba(232,85,85,0.2) !important;
-  box-shadow: 0 0 20px rgba(232,85,85,0.2) !important;
-}
+[data-testid="stMetric"] { background:var(--bg2)!important; border:1px solid var(--b)!important; border-radius:var(--r)!important; padding:18px 20px!important; position:relative; overflow:hidden; }
+[data-testid="stMetric"]::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold),transparent); opacity:.4; }
+[data-testid="stMetricLabel"]>div { font-family:'Syne',sans-serif!important; font-size:10px!important; font-weight:700!important; letter-spacing:.14em!important; text-transform:uppercase!important; color:var(--mut)!important; }
+[data-testid="stMetricValue"]>div { font-family:'Space Mono',monospace!important; font-size:28px!important; font-weight:700!important; color:var(--txt)!important; line-height:1.1!important; }
 
-/* Ghost nav button */
-.nav-btn .stButton > button {
-  background: transparent !important;
-  border: none !important;
-  text-align: left !important;
-  justify-content: flex-start !important;
-  color: var(--muted2) !important;
-  font-family: 'Instrument Sans', sans-serif !important;
-  font-size: 14px !important;
-  font-weight: 400 !important;
-  padding: 10px 20px !important;
-  border-radius: 0 !important;
-  letter-spacing: 0 !important;
-  transition: all 0.15s !important;
-}
-.nav-btn .stButton > button:hover {
-  background: rgba(255,255,255,0.04) !important;
-  color: var(--text) !important;
-  transform: none !important;
-}
-.nav-btn-active .stButton > button {
-  background: rgba(232,184,75,0.08) !important;
-  color: var(--gold) !important;
-  border-left: 2px solid var(--gold) !important;
-  border-radius: 0 !important;
-}
+.stDataFrame { border:1px solid var(--b)!important; border-radius:var(--r)!important; overflow:hidden!important; }
+[data-testid="stForm"] { border:1px solid var(--b)!important; border-radius:var(--r)!important; background:var(--bg2)!important; padding:24px!important; }
+.streamlit-expanderHeader { background:var(--bg2)!important; border:1px solid var(--b)!important; border-radius:var(--rs)!important; }
+.streamlit-expanderContent { background:var(--bg3)!important; border:1px solid var(--b)!important; border-top:none!important; }
+.stDownloadButton>button { font-family:'Syne',sans-serif!important; font-size:12px!important; font-weight:600!important; background:transparent!important; border:1px solid var(--b2)!important; color:var(--mut2)!important; border-radius:var(--rs)!important; padding:8px 16px!important; }
+.stDownloadButton>button:hover { border-color:var(--gold)!important; color:var(--gold)!important; }
+hr { border:none!important; border-top:1px solid var(--b)!important; margin:24px 0!important; }
+.stTabs [data-baseweb="tab-list"] { background:transparent!important; gap:0!important; border-bottom:1px solid var(--b)!important; }
+.stTabs [data-baseweb="tab"] { background:transparent!important; color:var(--mut)!important; border:none!important; font-family:'Syne',sans-serif!important; font-size:12px!important; font-weight:600!important; letter-spacing:.06em!important; padding:10px 20px!important; border-bottom:2px solid transparent!important; }
+.stTabs [aria-selected="true"] { color:var(--gold)!important; border-bottom:2px solid var(--gold)!important; }
+code { font-family:'Space Mono',monospace!important; font-size:11px!important; background:rgba(255,255,255,.06)!important; padding:2px 6px!important; border-radius:4px!important; color:var(--teal)!important; }
 
-/* ── Inputs ── */
-.stTextInput > div > div > input,
-.stNumberInput > div > div > input {
-  background: var(--bg3) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-sm) !important;
-  color: var(--text) !important;
-  font-family: 'Space Mono', monospace !important;
-  font-size: 12px !important;
-  padding: 10px 14px !important;
-  transition: border-color 0.2s !important;
-}
-.stTextInput > div > div > input:focus,
-.stNumberInput > div > div > input:focus {
-  border-color: var(--gold) !important;
-  box-shadow: 0 0 0 3px rgba(232,184,75,0.1) !important;
-}
-.stTextInput label, .stNumberInput label, .stSelectbox label,
-.stSlider label, .stFileUploader label {
-  font-family: 'Syne', sans-serif !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.1em !important;
-  text-transform: uppercase !important;
-  color: var(--muted2) !important;
-}
+/* Custom helpers */
+.logo { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; letter-spacing:-.03em; background:linear-gradient(135deg,var(--gold),var(--gold2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.page-title { font-family:'Syne',sans-serif; font-size:28px; font-weight:800; letter-spacing:-.02em; color:var(--txt); line-height:1; }
+.page-sub { font-family:'Instrument Sans',sans-serif; font-size:14px; color:var(--mut2); margin-top:6px; font-weight:300; font-style:italic; }
+.sec { font-family:'Syne',sans-serif; font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--mut); margin-bottom:10px; margin-top:4px; }
+.card { background:var(--bg2); border:1px solid var(--b); border-radius:var(--r); padding:22px; }
+.card-gold { background:var(--bg2); border:1px solid rgba(232,184,75,.2); border-radius:var(--r); padding:22px; box-shadow:0 0 36px rgba(232,184,75,.05),inset 0 1px 0 rgba(232,184,75,.1); }
+.badge { display:inline-flex; align-items:center; gap:5px; font-family:'Space Mono',monospace; font-size:10px; padding:3px 10px; border-radius:99px; }
+.bg { background:rgba(62,207,142,.1); color:var(--green); border:1px solid rgba(62,207,142,.2); }
+.bo { background:rgba(232,184,75,.1); color:var(--gold); border:1px solid rgba(232,184,75,.2); }
+.br { background:rgba(232,85,85,.1); color:var(--red); border:1px solid rgba(232,85,85,.2); }
+.bb { background:rgba(77,159,255,.1); color:var(--blue); border:1px solid rgba(77,159,255,.2); }
+.bk { background:rgba(90,100,120,.15); color:var(--mut2); border:1px solid rgba(90,100,120,.2); }
+.bt { background:rgba(62,207,178,.1); color:var(--teal); border:1px solid rgba(62,207,178,.2); }
+.dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+.dg { background:var(--green); box-shadow:0 0 6px var(--green); }
+.dr { background:var(--red); box-shadow:0 0 6px var(--red); }
+.do { background:var(--gold); box-shadow:0 0 6px var(--gold); }
+.dk { background:var(--mut); }
+.pulse { animation:pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
+.waveform { display:flex; align-items:center; gap:3px; height:22px; }
+.waveform span { display:inline-block; width:3px; border-radius:2px; background:var(--gold); animation:wave 1.2s ease-in-out infinite; }
+.waveform span:nth-child(1){height:5px;animation-delay:0s}.waveform span:nth-child(2){height:13px;animation-delay:.1s}.waveform span:nth-child(3){height:19px;animation-delay:.2s}.waveform span:nth-child(4){height:13px;animation-delay:.3s}.waveform span:nth-child(5){height:7px;animation-delay:.4s}.waveform span:nth-child(6){height:15px;animation-delay:.5s}.waveform span:nth-child(7){height:9px;animation-delay:.6s}
+@keyframes wave { 0%,100%{transform:scaleY(.4);opacity:.5} 50%{transform:scaleY(1);opacity:1} }
+.live-pill { display:inline-flex; align-items:center; gap:7px; background:rgba(62,207,142,.08); border:1px solid rgba(62,207,142,.2); border-radius:99px; padding:5px 14px; font-family:'Syne',sans-serif; font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--green); }
+.info-row { display:flex; gap:22px; font-family:'Instrument Sans',sans-serif; font-size:13px; color:var(--mut2); margin:14px 0; flex-wrap:wrap; }
+.info-row strong { color:var(--txt); font-weight:500; }
+.role-pill { display:inline-block; font-family:'Syne',sans-serif; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:3px 10px; border-radius:99px; }
+.role-super { background:rgba(232,184,75,.15); color:var(--gold); border:1px solid rgba(232,184,75,.3); }
+.role-cadmin { background:rgba(77,159,255,.12); color:var(--blue); border:1px solid rgba(77,159,255,.25); }
+.role-cuser  { background:rgba(90,100,120,.15); color:var(--mut2); border:1px solid rgba(90,100,120,.2); }
+.empty { text-align:center; padding:50px 20px; }
+.empty-icon { font-size:44px; opacity:.4; margin-bottom:12px; }
+.empty-title { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; color:var(--mut2); margin-bottom:6px; }
+.empty-desc { font-size:13px; font-style:italic; font-family:'Instrument Sans',sans-serif; color:var(--mut); }
+.user-row { background:var(--bg3); border:1px solid var(--b); border-radius:var(--rs); padding:14px 18px; margin-bottom:8px; }
+.assist-card { background:var(--bg3); border:1px solid var(--b); border-radius:var(--rs); padding:14px 18px; margin-bottom:8px; transition:border-color .2s; }
+.assist-card:hover { border-color:var(--b2); }
+.cust-card { background:var(--bg2); border:1px solid var(--b); border-radius:var(--r); padding:20px; margin-bottom:10px; transition:border-color .2s, box-shadow .2s; }
+.cust-card:hover { border-color:rgba(232,184,75,.25); box-shadow:0 0 24px rgba(232,184,75,.05); }
 
-/* Selectbox */
-.stSelectbox > div > div {
-  background: var(--bg3) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-sm) !important;
-  color: var(--text) !important;
-  font-family: 'Space Mono', monospace !important;
-  font-size: 12px !important;
-}
-
-/* Slider */
-.stSlider > div > div > div > div {
-  background: var(--gold) !important;
-}
-
-/* ── Progress bar ── */
-.stProgress > div > div > div > div {
-  background: linear-gradient(90deg, var(--gold), var(--teal)) !important;
-  border-radius: 99px !important;
-}
-.stProgress > div > div > div {
-  background: rgba(255,255,255,0.06) !important;
-  border-radius: 99px !important;
-}
-
-/* ── Metrics ── */
-[data-testid="stMetric"] {
-  background: var(--bg2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  padding: 20px 22px !important;
-  position: relative;
-  overflow: hidden;
-}
-[data-testid="stMetric"]::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0.4;
-}
-[data-testid="stMetricLabel"] > div {
-  font-family: 'Syne', sans-serif !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.14em !important;
-  text-transform: uppercase !important;
-  color: var(--muted) !important;
-}
-[data-testid="stMetricValue"] > div {
-  font-family: 'Space Mono', monospace !important;
-  font-size: 30px !important;
-  font-weight: 700 !important;
-  color: var(--text) !important;
-  line-height: 1.1 !important;
-}
-
-/* ── Dataframe ── */
-.stDataFrame {
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  overflow: hidden !important;
-}
-.stDataFrame [data-testid="stDataFrameResizable"] {
-  background: var(--bg2) !important;
-}
-
-/* ── Expander ── */
-details summary {
-  font-family: 'Syne', sans-serif !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-}
-.streamlit-expanderHeader {
-  background: var(--bg2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-sm) !important;
-}
-.streamlit-expanderContent {
-  background: var(--bg3) !important;
-  border: 1px solid var(--border) !important;
-  border-top: none !important;
-}
-
-/* ── Alerts ── */
-.stAlert {
-  border-radius: var(--radius-sm) !important;
-  border: 1px solid !important;
-  font-family: 'Instrument Sans', sans-serif !important;
-  font-size: 13px !important;
-}
-div[data-baseweb="notification"] {
-  border-radius: var(--radius-sm) !important;
-}
-
-/* ── File uploader ── */
-[data-testid="stFileUploader"] {
-  background: var(--bg3) !important;
-  border: 2px dashed var(--border2) !important;
-  border-radius: var(--radius) !important;
-  transition: border-color 0.2s !important;
-}
-[data-testid="stFileUploader"]:hover {
-  border-color: var(--gold) !important;
-}
-[data-testid="stFileUploaderDropzone"] {
-  background: transparent !important;
-}
-
-/* ── Form ── */
-[data-testid="stForm"] {
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  background: var(--bg2) !important;
-  padding: 24px !important;
-}
-
-/* ── Download button ── */
-.stDownloadButton > button {
-  font-family: 'Syne', sans-serif !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  background: transparent !important;
-  border: 1px solid var(--border2) !important;
-  color: var(--muted2) !important;
-  border-radius: var(--radius-sm) !important;
-  padding: 8px 16px !important;
-}
-.stDownloadButton > button:hover {
-  border-color: var(--gold) !important;
-  color: var(--gold) !important;
-  background: var(--gold-glow) !important;
-}
-
-/* ── Divider ── */
-hr {
-  border: none !important;
-  border-top: 1px solid var(--border) !important;
-  margin: 28px 0 !important;
-}
-
-/* ── Custom classes ── */
-.Volant-logo {
-  font-family: 'Syne', sans-serif;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--gold), var(--gold2));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  display: inline-block;
-}
-
-.Volant-tagline {
-  font-family: 'Instrument Sans', sans-serif;
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin-top: 2px;
-}
-
-.page-title {
-  font-family: 'Syne', sans-serif;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  line-height: 1;
-}
-
-.page-sub {
-  font-family: 'Instrument Sans', sans-serif;
-  font-size: 14px;
-  color: var(--muted2);
-  margin-top: 6px;
-  font-weight: 300;
-  font-style: italic;
-}
-
-.section-label {
-  font-family: 'Syne', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 12px;
-  margin-top: 4px;
-}
-
-.card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  position: relative;
-  overflow: hidden;
-}
-
-.card-glow {
-  background: var(--bg2);
-  border: 1px solid rgba(232,184,75,0.2);
-  border-radius: var(--radius);
-  padding: 24px;
-  box-shadow: 0 0 40px rgba(232,184,75,0.06), inset 0 1px 0 rgba(232,184,75,0.12);
-}
-
-.status-dot {
-  display: inline-block;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  margin-right: 7px;
-  vertical-align: middle;
-}
-.dot-green  { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.dot-gold   { background: var(--gold);  box-shadow: 0 0 6px var(--gold); }
-.dot-red    { background: var(--red);   box-shadow: 0 0 6px var(--red); }
-.dot-blue   { background: var(--blue);  box-shadow: 0 0 6px var(--blue); }
-.dot-grey   { background: var(--muted); }
-
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  padding: 3px 10px;
-  border-radius: 99px;
-  font-weight: 400;
-}
-.badge-green { background: rgba(62,207,142,0.1);  color: var(--green); border: 1px solid rgba(62,207,142,0.2); }
-.badge-gold  { background: rgba(232,184,75,0.1);  color: var(--gold);  border: 1px solid rgba(232,184,75,0.2); }
-.badge-red   { background: rgba(232,85,85,0.1);   color: var(--red);   border: 1px solid rgba(232,85,85,0.2); }
-.badge-blue  { background: rgba(77,159,255,0.1);  color: var(--blue);  border: 1px solid rgba(77,159,255,0.2); }
-.badge-grey  { background: rgba(90,100,120,0.15); color: var(--muted2);border: 1px solid rgba(90,100,120,0.2); }
-.badge-teal  { background: rgba(62,207,178,0.1);  color: var(--teal);  border: 1px solid rgba(62,207,178,0.2); }
-
-.assistant-card {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 16px 20px;
-  margin-bottom: 10px;
-  transition: border-color 0.2s;
-}
-.assistant-card:hover {
-  border-color: var(--border2);
-}
-.assistant-name {
-  font-family: 'Syne', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-}
-.assistant-id {
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 3px;
-}
-.assistant-desc {
-  font-family: 'Instrument Sans', sans-serif;
-  font-size: 12px;
-  color: var(--muted2);
-  font-style: italic;
-  margin-top: 4px;
-}
-
-.stat-label {
-  font-family: 'Syne', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.stat-value {
-  font-family: 'Space Mono', monospace;
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1;
-  margin-top: 6px;
-}
-
-.live-pill {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: rgba(62,207,142,0.08);
-  border: 1px solid rgba(62,207,142,0.2);
-  border-radius: 99px;
-  padding: 5px 14px;
-  font-family: 'Syne', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--green);
-}
-
-.info-row {
-  display: flex; gap: 24px;
-  font-family: 'Instrument Sans', sans-serif;
-  font-size: 13px;
-  color: var(--muted2);
-  margin: 16px 0;
-  flex-wrap: wrap;
-}
-.info-row span { display: flex; align-items: center; gap: 6px; }
-.info-row strong { color: var(--text); font-weight: 500; }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
-}
-.pulse { animation: pulse 2s ease-in-out infinite; }
-
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-.waveform {
-  display: flex; align-items: center; gap: 3px; height: 24px;
-}
-.waveform span {
-  display: inline-block; width: 3px; border-radius: 2px;
-  background: var(--gold);
-  animation: wave 1.2s ease-in-out infinite;
-}
-.waveform span:nth-child(1) { height: 6px;  animation-delay: 0s; }
-.waveform span:nth-child(2) { height: 14px; animation-delay: 0.1s; }
-.waveform span:nth-child(3) { height: 20px; animation-delay: 0.2s; }
-.waveform span:nth-child(4) { height: 14px; animation-delay: 0.3s; }
-.waveform span:nth-child(5) { height: 8px;  animation-delay: 0.4s; }
-.waveform span:nth-child(6) { height: 16px; animation-delay: 0.5s; }
-.waveform span:nth-child(7) { height: 10px; animation-delay: 0.6s; }
-@keyframes wave {
-  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
-  50% { transform: scaleY(1); opacity: 1; }
-}
-
-.sidebar-section {
-  padding: 20px 16px 8px 16px;
-}
-.sidebar-nav-item {
-  padding: 2px 0;
-}
-.sidebar-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 12px 16px;
-}
-.sidebar-footer {
-  padding: 16px;
-  margin-top: auto;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--muted);
-}
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-.empty-title {
-  font-family: 'Syne', sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--muted2);
-  margin-bottom: 8px;
-}
-.empty-desc {
-  font-size: 13px;
-  font-style: italic;
-  font-family: 'Instrument Sans', sans-serif;
-}
-
-/* Tabs styling */
-.stTabs [data-baseweb="tab-list"] {
-  background: transparent !important;
-  gap: 0 !important;
-  border-bottom: 1px solid var(--border) !important;
-  padding-bottom: 0 !important;
-}
-.stTabs [data-baseweb="tab"] {
-  background: transparent !important;
-  color: var(--muted) !important;
-  border: none !important;
-  font-family: 'Syne', sans-serif !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.06em !important;
-  padding: 10px 20px !important;
-  border-bottom: 2px solid transparent !important;
-}
-.stTabs [aria-selected="true"] {
-  color: var(--gold) !important;
-  border-bottom: 2px solid var(--gold) !important;
-}
-
-/* Code blocks */
-code {
-  font-family: 'Space Mono', monospace !important;
-  font-size: 11px !important;
-  background: rgba(255,255,255,0.06) !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  color: var(--teal) !important;
-}
-
+/* Login page */
+.login-wrap { max-width:420px; margin:80px auto 0; }
+.login-logo { text-align:center; margin-bottom:32px; }
+.login-logo .logo { font-size:36px; }
+.login-logo .devnagri { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; letter-spacing:.2em; color:var(--mut); text-transform:uppercase; margin-top:4px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── State ────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  STATE & API
+# ══════════════════════════════════════════════════════════════════════════════
 
 def init_state():
-    for k, v in {
-        "contacts": None,
-        "file_name": None,
-        "active_campaign_id": None,
-        "tab": "Campaign",
-    }.items():
+    for k, v in {"token": None, "user": None, "tab": "Campaign",
+                 "contacts": None, "active_campaign_id": None}.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 init_state()
 
-# ─── API ──────────────────────────────────────────────────────────────────────
-
-def api_get(path, default=None):
+def api(method, path, data=None, token=None):
+    tok = token or st.session_state.get("token")
+    headers = {"Authorization": f"Bearer {tok}"} if tok else {}
     try:
-        r = requests.get(f"{API}{path}", timeout=5)
-        r.raise_for_status()
-        return r.json()
-    except:
-        return default
-
-def api_post(path, data=None):
-    try:
-        r = requests.post(f"{API}{path}", json=data or {}, timeout=10)
+        r = getattr(requests, method)(f"{API}{path}", json=data, headers=headers, timeout=8)
         r.raise_for_status()
         return r.json(), None
+    except requests.HTTPError as e:
+        try: msg = e.response.json().get("detail", str(e))
+        except: msg = str(e)
+        return None, msg
     except Exception as e:
         return None, str(e)
 
+def GET(path): return api("get", path)[0]
+def POST(path, data=None): return api("post", path, data)
+def DELETE(path): return api("delete", path)
+
 def backend_alive():
-    try:
-        requests.get(f"{API.replace('/api','')}/health", timeout=2)
-        return True
-    except:
-        return False
+    try: requests.get(f"{API.replace('/api','')}/health", timeout=2); return True
+    except: return False
 
-def get_assistant_options():
-    assistants = api_get("/assistants", [])
-    settings   = api_get("/settings", {})
-    default_id = settings.get("vapi_assistant_id", "")
-    short = default_id[:16] + "…" if len(default_id) > 16 else default_id
-    options = [("⭐  Default" + (f"  ·  {short}" if default_id else "  ·  not set"), default_id)]
-    for a in assistants:
-        lbl = f"🤖  {a['name']}"
-        if a.get("description"):
-            lbl += f"  ·  {a['description']}"
-        options.append((lbl, a["assistant_id"]))
-    return options
-
-def assistant_selectbox(label, key):
-    options = get_assistant_options()
-    labels  = [o[0] for o in options]
-    idx = st.selectbox(label, range(len(labels)), format_func=lambda i: labels[i], key=key)
-    return options[idx][1]
+def role(): return st.session_state.user["role"] if st.session_state.user else None
+def is_super(): return role() == "super_admin"
+def is_admin(): return role() in ("super_admin","customer_admin")
+def cid(): return (st.session_state.user or {}).get("customer_id")
 
 STATUS_META = {
-    "pending":     ("grey",  "⬡", "Pending"),
-    "queued":      ("gold",  "◔", "Queued"),
-    "dialing":     ("blue",  "◑", "Dialing"),
-    "in-progress": ("teal",  "●", "Live"),
-    "completed":   ("green", "✓", "Completed"),
-    "failed":      ("red",   "✗", "Failed"),
-    "no-answer":   ("gold",  "⊘", "No Answer"),
-    "starting":    ("gold",  "◔", "Starting"),
-    "running":     ("green", "●", "Running"),
-    "aborted":     ("red",   "✗", "Aborted"),
+    "pending":("bk","⬡","Pending"), "queued":("bo","◔","Queued"),
+    "dialing":("bb","◑","Dialing"), "in-progress":("bt","●","Live"),
+    "completed":("bg","✓","Done"), "failed":("br","✗","Failed"),
+    "no-answer":("bo","⊘","No Answer"), "starting":("bo","◔","Starting"),
+    "running":("bg","●","Running"), "aborted":("br","✗","Aborted"),
 }
 
-def status_badge(status):
-    c, ic, lbl = STATUS_META.get(status, ("grey", "?", status))
-    return f'<span class="badge badge-{c}">{ic} {lbl}</span>'
+def badge(status):
+    cls, ic, lbl = STATUS_META.get(status, ("bk","?",status))
+    return f'<span class="badge {cls}">{ic} {lbl}</span>'
 
-# ─── Sidebar ─────────────────────────────────────────────────────────────────
+def role_pill(r):
+    if r == "super_admin": return '<span class="role-pill role-super">⭐ Super Admin</span>'
+    if r == "customer_admin": return '<span class="role-pill role-cadmin">🔑 Admin</span>'
+    return '<span class="role-pill role-cuser">👤 User</span>'
+
+def assistant_opts():
+    settings = GET("/settings") or {}
+    assistants = GET("/assistants") or []
+    did = settings.get("vapi_assistant_id","")
+    short = did[:14]+"…" if len(did)>14 else did
+    opts = [("⭐  Default" + (f"  ·  {short}" if did else "  ·  not set"), did)]
+    for a in assistants:
+        lbl = f"🤖  {a['name']}"
+        if a.get("description"): lbl += f"  ·  {a['description']}"
+        opts.append((lbl, a["assistant_id"]))
+    return opts
+
+def asst_select(label, key):
+    opts = assistant_opts()
+    labels = [o[0] for o in opts]
+    idx = st.selectbox(label, range(len(labels)), format_func=lambda i: labels[i], key=key)
+    return opts[idx][1]
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  LOGIN PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+
+if not st.session_state.token:
+    alive = backend_alive()
+    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="login-logo">
+      <div class="logo">आवाज़</div>
+      <div class="devnagri">Awaaz · Voice Bot Platform</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not alive:
+        st.error("⚠️ Backend offline — run: `uvicorn backend:app --port 4000`")
+
+    st.markdown('<div class="card-gold">', unsafe_allow_html=True)
+    st.markdown('<div class="sec">Sign in to your account</div>', unsafe_allow_html=True)
+
+    with st.form("login_form"):
+        username = st.text_input("Username", placeholder="e.g. superadmin")
+        password = st.text_input("Password", type="password", placeholder="••••••••")
+        st.markdown('<div class="btn-gold">', unsafe_allow_html=True)
+        submitted = st.form_submit_button("Sign In →")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if submitted:
+            if not username or not password:
+                st.warning("Enter username and password.")
+            else:
+                data, err = POST("/auth/login", {"username": username, "password": password})
+                if err:
+                    st.error(f"Login failed: {err}")
+                else:
+                    st.session_state.token = data["token"]
+                    st.session_state.user  = data["user"]
+                    # Default tab per role
+                    if data["user"]["role"] == "super_admin":
+                        st.session_state.tab = "Customers"
+                    st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div style="margin-top:20px;text-align:center;font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);">
+      Default super admin: <code>superadmin</code> / <code>admin123</code>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SIDEBAR (authenticated)
+# ══════════════════════════════════════════════════════════════════════════════
+
+user = st.session_state.user
+alive = backend_alive()
 
 with st.sidebar:
-    alive = backend_alive()
-
-    # Logo
-    st.markdown("""
-    <div style="padding: 28px 20px 20px 20px; border-bottom: 1px solid var(--border);">
-      <div class="Volant-logo">आवाज़</div>
-      <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.2em;color:var(--muted);margin-top:2px;text-transform:uppercase;">Volant</div>
-      <div class="Volant-tagline" style="margin-top:6px;">Voice Bot Platform</div>
+    # Logo + user info
+    st.markdown(f"""
+    <div style="padding:24px 20px 16px;border-bottom:1px solid var(--b);">
+      <div class="logo" style="font-size:22px;">आवाज़</div>
+      <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--mut);text-transform:uppercase;margin-top:2px;">Awaaz</div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:rgba(232,184,75,.15);border:1px solid rgba(232,184,75,.3);display:flex;align-items:center;justify-content:center;font-size:13px;">
+          {"⭐" if is_super() else "🔑" if is_admin() else "👤"}
+        </div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--txt);">{user.get('display_name') or user['username']}</div>
+          <div style="font-size:10px;color:var(--mut);font-family:'Space Mono',monospace;">{user['username']}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;">{role_pill(user['role'])}</div>
     </div>
     """, unsafe_allow_html=True)
 
     # Backend status
     st.markdown(f"""
-    <div style="padding:12px 20px;border-bottom:1px solid var(--border);">
-      <span class="status-dot {'dot-green pulse' if alive else 'dot-red'}"></span>
-      <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.06em;color:{'var(--green)' if alive else 'var(--red)'};">
+    <div style="padding:10px 20px;border-bottom:1px solid var(--b);">
+      <span class="dot {'dg pulse' if alive else 'dr'}"></span>
+      <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;letter-spacing:.06em;color:{'var(--green)' if alive else 'var(--red)'};">
         {'BACKEND LIVE' if alive else 'BACKEND OFFLINE'}
       </span>
     </div>
     """, unsafe_allow_html=True)
 
-    if not alive:
-        st.markdown("""
-        <div style="padding:10px 20px;">
-          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);background:rgba(255,255,255,0.04);padding:10px;border-radius:6px;border:1px solid var(--border);">
-            uvicorn backend:app \\<br>&nbsp;&nbsp;--port 4000
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Navigation — tabs depend on role
+    st.markdown('<div style="padding:12px 0 8px;">', unsafe_allow_html=True)
 
-    # Nav
-    st.markdown('<div style="padding:16px 0 8px 0;">', unsafe_allow_html=True)
-
-    nav_items = [
-        ("Campaign",   "🚀", "Bulk call campaigns"),
-        ("Single Call","📞", "One-off test calls"),
-        ("Dashboard",  "📊", "Live call tracking"),
-        ("Assistants", "🤖", "Manage voice bots"),
-        ("Settings",   "⚙️", "API credentials"),
+    nav = []
+    if is_super():
+        nav += [("Customers","🏢","Manage customers")]
+    nav += [
+        ("Campaign","🚀","Bulk campaigns"),
+        ("Single Call","📞","One-off calls"),
+        ("Dashboard","📊","Live tracking"),
+        ("Assistants","🤖","Voice bots"),
+        ("Team","👥","User management"),
+        ("Settings","⚙️","API credentials"),
     ]
-    for tab, icon, desc in nav_items:
+    # Remove Team and Settings for customer_user
+    if role() == "customer_user":
+        nav = [(t,i,d) for t,i,d in nav if t not in ("Team","Settings","Assistants")]
+
+    for tab, icon, _ in nav:
         active = st.session_state.tab == tab
-        css_class = "nav-btn-active nav-btn" if active else "nav-btn"
-        st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+        css = "btn-active btn-ghost" if active else "btn-ghost"
+        st.markdown(f'<div class="{css}">', unsafe_allow_html=True)
         if st.button(f"{icon}  {tab}", key=f"nav_{tab}", use_container_width=True):
             st.session_state.tab = tab
             st.rerun()
@@ -731,567 +330,527 @@ with st.sidebar:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Sidebar footer
-    st.markdown("""
-    <div style="position:fixed;bottom:0;left:0;width:inherit;padding:16px 20px;border-top:1px solid var(--border);background:var(--bg2);">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div class="waveform">
-          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
-        <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.1em;">VAPI · TWILIO</span>
-      </div>
+    # Logout
+    st.markdown('<div style="position:fixed;bottom:0;left:0;width:inherit;background:var(--bg2);border-top:1px solid var(--b);">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:10px 16px;display:flex;align-items:center;gap:10px;">', unsafe_allow_html=True)
+    col_wave, col_logout = st.columns([3,1])
+    with col_wave:
+        st.markdown("""<div class="waveform"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>""", unsafe_allow_html=True)
+    with col_logout:
+        if st.button("↩", key="logout", help="Sign out"):
+            POST("/auth/logout")
+            for k in list(st.session_state.keys()): del st.session_state[k]
+            st.rerun()
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PAGE HEADER HELPER
+# ══════════════════════════════════════════════════════════════════════════════
+
+def page_header(title, sub):
+    st.markdown(f"""
+    <div style="padding:28px 0 20px;">
+      <div class="page-title">{title}</div>
+      <div class="page-sub">{sub}</div>
     </div>
     """, unsafe_allow_html=True)
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  SUPER ADMIN — CUSTOMERS PAGE
+# ══════════════════════════════════════════════════════════════════════════════
 
-# ════════════════════════════════════════════════════════════════════════════════
-#  PAGES
-# ════════════════════════════════════════════════════════════════════════════════
+if st.session_state.tab == "Customers" and is_super():
+    page_header("Customers", "All client accounts on the Awaaz platform")
 
-# ─── Campaign ─────────────────────────────────────────────────────────────────
+    col_form, col_list = st.columns([2, 3], gap="large")
 
-if st.session_state.tab == "Campaign":
-
-    st.markdown("""
-    <div style="padding: 32px 0 24px 0;">
-      <div class="page-title">Bulk Campaign</div>
-      <div class="page-sub">Upload contacts, pick a voice bot, launch calls at scale</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col_left, col_right = st.columns([3, 2], gap="large")
-
-    with col_left:
-        st.markdown('<div class="section-label">01 · Upload Contact List</div>', unsafe_allow_html=True)
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-
-        uploaded = st.file_uploader(
-            "Drop CSV or Excel here",
-            type=["csv", "xlsx", "xls"],
-            label_visibility="collapsed",
-            help="Columns needed: phone (required), name (optional)"
-        )
-
-        if uploaded:
-            try:
-                if uploaded.name.endswith(".csv"):
-                    df = pd.read_csv(uploaded)
+    with col_form:
+        st.markdown('<div class="sec">Create New Customer</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-gold">', unsafe_allow_html=True)
+        with st.form("new_customer"):
+            cname = st.text_input("Company / Customer Name", placeholder="e.g. Acme Corp")
+            st.markdown('<div class="btn-gold">', unsafe_allow_html=True)
+            ok = st.form_submit_button("➕  Create Customer")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if ok:
+                if not cname:
+                    st.warning("Name required.")
                 else:
-                    df = pd.read_excel(uploaded)
-
-                df.columns = [c.strip().lower() for c in df.columns]
-                phone_col = next((c for c in df.columns if any(k in c for k in ["phone","mobile","number"])), df.columns[0])
-                name_col  = next((c for c in df.columns if "name" in c), None)
-
-                df = df.rename(columns={phone_col: "phone"})
-                if name_col and name_col != "phone":
-                    df = df.rename(columns={name_col: "name"})
-                else:
-                    df["name"] = [f"Contact {i+1}" for i in range(len(df))]
-
-                df["phone"] = df["phone"].astype(str).str.strip()
-                df = df[df["phone"].str.len() > 5][["name", "phone"]].reset_index(drop=True)
-
-                st.session_state.contacts = df
-                st.session_state.file_name = uploaded.name
-
-                st.markdown(f"""
-                <div style="margin-top:12px;padding:14px 18px;background:rgba(62,207,142,0.06);border:1px solid rgba(62,207,142,0.15);border-radius:8px;display:flex;align-items:center;gap:10px;">
-                  <span style="font-size:20px;">✅</span>
-                  <div>
-                    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);">{len(df)} contacts loaded</div>
-                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;">{uploaded.name}</div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            except Exception as e:
-                st.error(f"Parse error: {e}")
+                    data, err = POST("/customers", {"name": cname})
+                    if err: st.error(err)
+                    else: st.success(f"✅ Customer **{cname}** created!"); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("""
-        <div style="margin-top:14px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">
-          Accepted: .csv · .xlsx · .xls &nbsp;|&nbsp; Columns: name, phone
+        <div style="height:16px"></div>
+        <div class="card">
+          <div class="sec">Platform Overview</div>
+          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--mut2);line-height:1.9;">
+            · Super Admin manages all customers<br>
+            · Each customer has isolated data<br>
+            · Add users via the <strong style="color:var(--txt);">Team</strong> tab after switching<br>
+            · Settings are per-customer (VAPI keys)
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
-        sample = "name,phone\nAlex Kumar,+919876543210\nPriya Sharma,+919123456789\nRaj Patel,+917890123456"
-        st.download_button("⬇ Download sample CSV", data=sample, file_name="sample_contacts.csv", mime="text/csv")
+    with col_list:
+        customers = GET("/customers") or []
+        st.markdown(f'<div class="sec">{len(customers)} customer{"s" if len(customers)!=1 else ""}</div>', unsafe_allow_html=True)
 
+        if not customers:
+            st.markdown('<div class="empty"><div class="empty-icon">🏢</div><div class="empty-title">No customers yet</div><div class="empty-desc">Create one to get started</div></div>', unsafe_allow_html=True)
+        else:
+            for c in customers:
+                active_cls = "" if c["is_active"] else "opacity:.4;"
+                st.markdown(f"""
+                <div class="cust-card" style="{active_cls}">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                    <div>
+                      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--txt);">{c['name']}</div>
+                      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);margin-top:3px;">{c['id'][:16]}…</div>
+                    </div>
+                    {"" if c['is_active'] else '<span class="badge br">Inactive</span>'}
+                  </div>
+                  <div class="info-row" style="margin:0;">
+                    <span>👥 <strong>{c.get('user_count',0)}</strong> users</span>
+                    <span>🚀 <strong>{c.get('campaign_count',0)}</strong> campaigns</span>
+                    <span>📅 <strong>{c.get('created_at','')[:10]}</strong></span>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+                col_del, _ = st.columns([1, 5])
+                with col_del:
+                    st.markdown('<div class="btn-red">', unsafe_allow_html=True)
+                    if st.button("Deactivate", key=f"del_c_{c['id']}"):
+                        DELETE(f"/customers/{c['id']}")
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CAMPAIGN PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+
+elif st.session_state.tab == "Campaign":
+    if not is_admin():
+        st.markdown('<div class="empty"><div class="empty-icon">🔒</div><div class="empty-title">Admin access required</div><div class="empty-desc">Contact your admin to launch campaigns</div></div>', unsafe_allow_html=True)
+        st.stop()
+
+    page_header("Bulk Campaign", "Upload contacts, pick a voice bot, launch at scale")
+
+    col_l, col_r = st.columns([3, 2], gap="large")
+
+    with col_l:
+        st.markdown('<div class="sec">01 · Upload Contact List</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+
+        uploaded = st.file_uploader("Drop CSV or Excel", type=["csv","xlsx","xls"],
+                                    label_visibility="collapsed")
+        if uploaded:
+            try:
+                df = pd.read_csv(uploaded) if uploaded.name.endswith(".csv") else pd.read_excel(uploaded)
+                df.columns = [c.strip().lower() for c in df.columns]
+                pc = next((c for c in df.columns if any(k in c for k in ["phone","mobile","number"])), df.columns[0])
+                nc = next((c for c in df.columns if "name" in c), None)
+                df = df.rename(columns={pc:"phone"})
+                if nc and nc != "phone": df = df.rename(columns={nc:"name"})
+                else: df["name"] = [f"Contact {i+1}" for i in range(len(df))]
+                df["phone"] = df["phone"].astype(str).str.strip()
+                df = df[df["phone"].str.len()>5][["name","phone"]].reset_index(drop=True)
+                st.session_state.contacts = df
+                st.markdown(f"""
+                <div style="margin-top:10px;padding:12px 16px;background:rgba(62,207,142,.06);border:1px solid rgba(62,207,142,.15);border-radius:8px;display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:18px;">✅</span>
+                  <div><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);">{len(df)} contacts loaded</div>
+                  <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);">{uploaded.name}</div></div>
+                </div>""", unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Parse error: {e}")
+
+        st.markdown('<div style="margin-top:12px;font-family:Space Mono,monospace;font-size:10px;color:var(--mut);">Accepted: .csv · .xlsx · .xls  |  Columns: name, phone</div>', unsafe_allow_html=True)
+        sample = "name,phone\nAlex Kumar,+919876543210\nPriya Sharma,+919123456789"
+        st.download_button("⬇ Sample CSV", data=sample, file_name="sample.csv", mime="text/csv")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Preview
         if st.session_state.contacts is not None:
-            st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
-            st.markdown('<div class="section-label">Contact Preview</div>', unsafe_allow_html=True)
-            preview = st.session_state.contacts.head(15).copy()
-            preview.index = preview.index + 1
-            st.dataframe(preview, use_container_width=True, height=280)
-            if len(st.session_state.contacts) > 15:
-                st.markdown(f'<div style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);margin-top:6px;">+{len(st.session_state.contacts)-15} more contacts not shown</div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec">Preview</div>', unsafe_allow_html=True)
+            p = st.session_state.contacts.head(12).copy(); p.index += 1
+            st.dataframe(p, use_container_width=True, height=260)
+            if len(st.session_state.contacts) > 12:
+                st.markdown(f'<div style="font-family:Space Mono,monospace;font-size:10px;color:var(--mut);margin-top:4px;">+{len(st.session_state.contacts)-12} more</div>', unsafe_allow_html=True)
 
-    with col_right:
-        st.markdown('<div class="section-label">02 · Campaign Settings</div>', unsafe_allow_html=True)
-        st.markdown('<div class="card-glow">', unsafe_allow_html=True)
-
-        campaign_name   = st.text_input("Campaign Name", placeholder="e.g. April Follow-up Drive")
-        selected_asst   = assistant_selectbox("Voice Assistant", key="campaign_asst")
-
-        settings = api_get("/settings", {})
-        cpm      = settings.get("calls_per_minute", 10)
-
+    with col_r:
+        st.markdown('<div class="sec">02 · Campaign Settings</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-gold">', unsafe_allow_html=True)
+        cname = st.text_input("Campaign Name", placeholder="e.g. May Follow-up")
+        sel_asst = asst_select("Voice Assistant", "camp_asst")
+        settings = GET("/settings") or {}
+        cpm = settings.get("calls_per_minute", 10)
         if st.session_state.contacts is not None:
-            n       = len(st.session_state.contacts)
-            est_min = round(n / max(cpm, 1), 1)
+            n = len(st.session_state.contacts)
+            est = round(n / max(cpm,1), 1)
             st.markdown(f"""
-            <div style="margin:16px 0;padding:14px 18px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);">
-              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Contacts</span>
-                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);">{n:,}</span>
+            <div style="margin:14px 0;padding:14px 16px;background:var(--bg3);border-radius:8px;border:1px solid var(--b);">
+              <div style="display:flex;justify-content:space-between;margin-bottom:7px;">
+                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);">Contacts</span>
+                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--txt);">{n:,}</span>
               </div>
-              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Rate</span>
-                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);">{cpm}/min</span>
+              <div style="display:flex;justify-content:space-between;margin-bottom:7px;">
+                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);">Rate</span>
+                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--txt);">{cpm}/min</span>
               </div>
               <div style="display:flex;justify-content:space-between;">
-                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);">Est. Duration</span>
-                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--gold);">~{est_min} min</span>
+                <span style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);">Est. Time</span>
+                <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--gold);">~{est} min</span>
               </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
-        disabled = st.session_state.contacts is None or not campaign_name
-        st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
-        if st.button("▶  Launch Campaign", disabled=disabled):
-            if not alive:
-                st.error("Backend is offline. Start it first.")
+            </div>""", unsafe_allow_html=True)
+        st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="btn-gold">', unsafe_allow_html=True)
+        launch = st.button("▶  Launch Campaign", disabled=(st.session_state.contacts is None or not cname))
+        st.markdown('</div>', unsafe_allow_html=True)
+        if launch:
+            if not alive: st.error("Backend offline.")
             else:
-                data, err = api_post("/campaign/start", {
-                    "campaign_name": campaign_name,
+                data, err = POST("/campaign/start", {
+                    "campaign_name": cname,
                     "contacts": st.session_state.contacts.to_dict("records"),
-                    "assistant_id": selected_asst or None,
+                    "assistant_id": sel_asst or None,
                 })
-                if err:
-                    st.error(f"Error: {err}")
+                if err: st.error(err)
                 else:
                     st.session_state.active_campaign_id = data["campaign_id"]
                     st.session_state.tab = "Dashboard"
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # Tips card
-        st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
         st.markdown("""
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-          <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">💡 Quick Tips</div>
-          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--muted2);line-height:1.8;">
-            · Phone numbers in E.164 format: <code>+91XXXXXXXXXX</code><br>
-            · Max 60 calls/min per VAPI plan<br>
-            · All calls logged in Dashboard<br>
-            · Set up webhook for live status
+        <div style="height:14px"></div>
+        <div class="card">
+          <div class="sec">💡 Tips</div>
+          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--mut2);line-height:1.8;">
+            · E.164 format: <code>+91XXXXXXXXXX</code><br>
+            · VAPI plan limits: max 60 calls/min<br>
+            · Set up webhook for live status updates
           </div>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
-
-# ─── Single Call ──────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  SINGLE CALL
+# ══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.tab == "Single Call":
+    if not is_admin():
+        st.markdown('<div class="empty"><div class="empty-icon">🔒</div><div class="empty-title">Admin access required</div></div>', unsafe_allow_html=True)
+        st.stop()
 
-    st.markdown("""
-    <div style="padding: 32px 0 24px 0;">
-      <div class="page-title">Single Call</div>
-      <div class="page-sub">Trigger a one-off call — great for testing your assistant</div>
-    </div>
-    """, unsafe_allow_html=True)
+    page_header("Single Call", "Trigger a one-off call — great for testing an assistant")
 
-    col1, col2 = st.columns([3, 2], gap="large")
-    with col1:
-        st.markdown('<div class="card-glow">', unsafe_allow_html=True)
-        st.markdown('<div class="section-label">Call Details</div>', unsafe_allow_html=True)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            name  = st.text_input("Contact Name", placeholder="e.g. Rahul Verma")
-        with c2:
-            phone = st.text_input("Phone Number", placeholder="+919876543210")
-
-        asst_id = assistant_selectbox("Voice Assistant", key="single_asst")
-
+    c1, c2 = st.columns([3, 2], gap="large")
+    with c1:
+        st.markdown('<div class="card-gold">', unsafe_allow_html=True)
+        r1, r2 = st.columns(2)
+        with r1: name  = st.text_input("Contact Name", placeholder="e.g. Rahul Verma")
+        with r2: phone = st.text_input("Phone Number", placeholder="+919876543210")
+        asst_id = asst_select("Voice Assistant", "single_asst")
         st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="btn-primary">', unsafe_allow_html=True)
+        st.markdown('<div class="btn-gold">', unsafe_allow_html=True)
         call_btn = st.button("📞  Call Now")
         st.markdown('</div>', unsafe_allow_html=True)
-
         if call_btn:
-            if not phone:
-                st.warning("A phone number is required.")
-            elif not alive:
-                st.error("Backend offline.")
+            if not phone: st.warning("Phone number required.")
+            elif not alive: st.error("Backend offline.")
             else:
-                data, err = api_post("/call/single", {
-                    "name": name or "Test Contact",
-                    "phone": phone,
-                    "assistant_id": asst_id or None,
-                })
-                if err:
-                    st.error(f"Call failed: {err}")
-                else:
-                    st.markdown(f"""
-                    <div style="margin-top:16px;padding:16px 20px;background:rgba(62,207,142,0.06);border:1px solid rgba(62,207,142,0.2);border-radius:10px;">
-                      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green);margin-bottom:4px;">✓ Call triggered successfully</div>
-                      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">VAPI ID: {data.get('vapi_call_id','—')}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
+                data, err = POST("/call/single", {"name": name or "Test", "phone": phone, "assistant_id": asst_id or None})
+                if err: st.error(err)
+                else: st.markdown(f'<div style="margin-top:14px;padding:14px 18px;background:rgba(62,207,142,.06);border:1px solid rgba(62,207,142,.2);border-radius:10px;"><div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:var(--green);">✓ Call triggered</div><div style="font-family:Space Mono,monospace;font-size:10px;color:var(--mut);">VAPI ID: {data.get("vapi_call_id","—")}</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col2:
+    with c2:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="section-label">Recent Solo Calls</div>', unsafe_allow_html=True)
-
-        calls = api_get("/calls", [])
-        solo  = [c for c in calls if not c.get("campaign_id")]
-
-        if not solo:
-            st.markdown("""
-            <div class="empty-state" style="padding:30px 10px;">
-              <div class="empty-icon">📵</div>
-              <div class="empty-title">No calls yet</div>
-              <div class="empty-desc">Trigger a call to see it here</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown('<div class="sec">Recent Solo Calls</div>', unsafe_allow_html=True)
+        calls = GET("/calls") or []
+        if not calls:
+            st.markdown('<div class="empty" style="padding:30px 10px;"><div class="empty-icon">📵</div><div class="empty-title">No calls yet</div></div>', unsafe_allow_html=True)
         else:
-            for c in reversed(solo[-8:]):
-                color, icon, lbl = STATUS_META.get(c["status"], ("grey","?",c["status"]))
+            for c in reversed(calls[-8:]):
+                cls, ic, lbl = STATUS_META.get(c["status"], ("bk","?",c["status"]))
                 st.markdown(f"""
-                <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-                  <div>
-                    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:var(--text);">{c['name']}</div>
-                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;">{c['phone']}</div>
-                  </div>
-                  <span class="badge badge-{color}">{icon} {lbl}</span>
-                </div>
-                """, unsafe_allow_html=True)
-
+                <div style="padding:10px 0;border-bottom:1px solid var(--b);display:flex;justify-content:space-between;align-items:center;">
+                  <div><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:600;color:var(--txt);">{c['name']}</div>
+                  <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);margin-top:2px;">{c['phone']}</div></div>
+                  <span class="badge {cls}">{ic} {lbl}</span>
+                </div>""", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ─── Dashboard ────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  DASHBOARD
+# ══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.tab == "Dashboard":
+    page_header("Dashboard", "Monitor campaign progress and call statuses in real time")
 
-    st.markdown("""
-    <div style="padding: 32px 0 24px 0;">
-      <div class="page-title">Dashboard</div>
-      <div class="page-sub">Monitor campaign progress and individual call statuses</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    campaigns = api_get("/campaigns", [])
-
+    campaigns = GET("/campaigns") or []
     if not campaigns:
-        st.markdown("""
-        <div class="empty-state">
-          <div class="empty-icon">📊</div>
-          <div class="empty-title">No campaigns yet</div>
-          <div class="empty-desc">Launch a campaign to see live data here</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="empty"><div class="empty-icon">📊</div><div class="empty-title">No campaigns yet</div><div class="empty-desc">Launch a campaign to see live data</div></div>', unsafe_allow_html=True)
     else:
-        # Campaign selector
-        camp_ids    = [c["id"] for c in campaigns]
-        camp_labels = [f"{c['name']}  ·  {c['id'][:8]}" for c in campaigns]
-        default_idx = 0
-        if st.session_state.active_campaign_id in camp_ids:
-            default_idx = camp_ids.index(st.session_state.active_campaign_id)
+        ids    = [c["id"] for c in campaigns]
+        labels = [f"{c['name']}  ·  {c['id'][:8]}" for c in campaigns]
+        def_idx = 0
+        if st.session_state.active_campaign_id in ids:
+            def_idx = ids.index(st.session_state.active_campaign_id)
+        sel = st.selectbox("Campaign", labels, index=def_idx, label_visibility="collapsed")
+        sel_id = ids[labels.index(sel)]
+        camp = GET(f"/campaign/{sel_id}")
+        if not camp: st.error("Could not load campaign."); st.stop()
 
-        sel_label = st.selectbox("Select Campaign", camp_labels, index=default_idx, label_visibility="collapsed")
-        sel_id    = camp_ids[camp_labels.index(sel_label)]
-        campaign  = api_get(f"/campaign/{sel_id}", {})
+        stats = camp.get("stats", {})
+        running = camp.get("status") in ("running","starting")
+        if running:
+            st.markdown('<div style="margin-bottom:16px;"><span class="live-pill"><span class="dot dg pulse"></span>LIVE · AUTO-REFRESHING</span></div>', unsafe_allow_html=True)
 
-        if not campaign:
-            st.error("Could not load campaign data.")
-        else:
-            stats      = campaign.get("stats", {})
-            is_running = campaign.get("status") in ("running", "starting")
-            c_status   = campaign.get("status", "unknown")
+        c1,c2,c3,c4,c5 = st.columns(5)
+        c1.metric("Total",      f"{stats.get('total',0):,}")
+        c2.metric("Dispatched", f"{stats.get('dispatched',0):,}")
+        c3.metric("✅ Done",    f"{stats.get('completed',0):,}")
+        c4.metric("🔴 Failed",  f"{stats.get('failed',0):,}")
+        c5.metric("🔵 Live",    f"{stats.get('dialing',0):,}")
 
-            # Live pill
-            if is_running:
-                st.markdown("""
-                <div style="margin-bottom:20px;">
-                  <span class="live-pill"><span class="status-dot dot-green pulse"></span>LIVE · AUTO-REFRESHING</span>
-                </div>
-                """, unsafe_allow_html=True)
+        total = max(stats.get("total",1),1)
+        done  = stats.get("completed",0)+stats.get("failed",0)+stats.get("no_answer",0)
+        st.progress(done/total, text=f"{done:,} / {total:,}  ·  {round(done/total*100)}%")
 
-            # ── KPI Cards
-            col_t, col_d, col_ok, col_fl, col_dl = st.columns(5)
-            kpis = [
-                (col_t,  "Total",       stats.get("total",0),       ""),
-                (col_d,  "Dispatched",  stats.get("dispatched",0),  ""),
-                (col_ok, "Completed",   stats.get("completed",0),   "green"),
-                (col_fl, "Failed",      stats.get("failed",0),      "red"),
-                (col_dl, "Live/Dialing",stats.get("dialing",0),     "blue"),
-            ]
-            for col, lbl, val, accent in kpis:
-                col.metric(lbl, f"{val:,}")
+        ci, ca = st.columns([4,1])
+        with ci:
+            s = camp.get("status","")
+            cls,ic,lbl = STATUS_META.get(s,("bk","?",s))
+            started = (camp.get("started_at") or "")[:19] or "—"
+            ended   = (camp.get("ended_at") or "")[:19] or "—"
+            st.markdown(f'<div class="info-row"><span>Status <strong>{ic} {lbl}</strong></span><span>Started <strong>{started}</strong></span><span>Ended <strong>{ended}</strong></span></div>', unsafe_allow_html=True)
+        with ca:
+            if running and is_admin():
+                st.markdown('<div class="btn-red">', unsafe_allow_html=True)
+                if st.button("⛔  Abort"):
+                    POST(f"/campaign/{sel_id}/abort")
+                    st.warning("Abort signal sent.")
+                st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+        st.markdown("---")
+        calls = camp.get("calls", [])
+        t_all, t_ok, t_fail = st.tabs(["All Calls", "✓ Completed", "✗ Failed / No Answer"])
 
-            # ── Progress bar
-            total = max(stats.get("total", 1), 1)
-            done  = stats.get("completed", 0) + stats.get("failed", 0) + stats.get("no_answer", 0)
-            pct   = done / total
-            st.progress(pct, text=f"{done:,} / {total:,} calls finished  ·  {round(pct*100)}%")
+        def call_table(rows):
+            if not rows:
+                st.markdown('<div class="empty" style="padding:30px;"><div class="empty-desc">No calls here</div></div>', unsafe_allow_html=True); return
+            df = pd.DataFrame(rows)
+            cols = [c for c in ["name","phone","status","duration","error"] if c in df.columns]
+            df = df[cols].copy()
+            df["status"] = df["status"].map(lambda s: STATUS_META.get(s,("","?",s))[1]+" "+STATUS_META.get(s,("","?",s))[2])
+            if "duration" in df.columns: df["duration"] = df["duration"].apply(lambda d: f"{int(d)}s" if d else "—")
+            if "error" in df.columns: df["error"] = df["error"].fillna("—")
+            df.columns = [c.capitalize() for c in df.columns]
+            st.dataframe(df, use_container_width=True, height=360)
 
-            # ── Info row + status + abort
-            col_info, col_act = st.columns([4, 1])
-            with col_info:
-                started = campaign.get("started_at", "")[:19] if campaign.get("started_at") else "—"
-                ended   = campaign.get("ended_at", "")[:19] if campaign.get("ended_at") else "—"
-                c_color, c_icon, c_lbl = STATUS_META.get(c_status, ("grey","?",c_status))
-                st.markdown(f"""
-                <div class="info-row">
-                  <span>Status <strong>{c_icon} {c_lbl}</strong></span>
-                  <span>Started <strong>{started}</strong></span>
-                  <span>Ended <strong>{ended}</strong></span>
-                  <span>Rate <strong>{api_get('/settings',{}).get('calls_per_minute',10)} calls/min</strong></span>
-                </div>
-                """, unsafe_allow_html=True)
-            with col_act:
-                if is_running:
-                    st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
-                    if st.button("⛔  Abort"):
-                        api_post(f"/campaign/{sel_id}/abort")
-                        st.warning("Abort signal sent.")
-                    st.markdown('</div>', unsafe_allow_html=True)
+        with t_all:
+            call_table(calls)
+            if calls:
+                st.download_button("⬇ Export CSV", pd.DataFrame(calls).to_csv(index=False),
+                                   file_name=f"awaaz_{sel_id[:8]}.csv", mime="text/csv")
+        with t_ok:  call_table([c for c in calls if c.get("status")=="completed"])
+        with t_fail: call_table([c for c in calls if c.get("status") in ("failed","no-answer")])
 
-            st.markdown("---")
+        if running: time.sleep(3); st.rerun()
 
-            # ── Call log tabs
-            tab_all, tab_ok, tab_fail = st.tabs(["All Calls", "✓ Completed", "✗ Failed / No Answer"])
-            calls = campaign.get("calls", [])
-
-            def render_call_table(rows):
-                if not rows:
-                    st.markdown('<div class="empty-state" style="padding:30px;"><div class="empty-desc">No calls in this category</div></div>', unsafe_allow_html=True)
-                    return
-                df = pd.DataFrame(rows)
-                cols = [c for c in ["name","phone","status","duration","error"] if c in df.columns]
-                df   = df[cols].copy()
-                df["status"]   = df["status"].map(lambda s: STATUS_META.get(s,("","?",s))[1] + " " + STATUS_META.get(s,("","?",s))[2])
-                df["duration"] = df.get("duration", pd.Series()).apply(lambda d: f"{int(d)}s" if d else "—")
-                if "error" in df.columns:
-                    df["error"] = df["error"].fillna("—")
-                df.columns = [c.capitalize() for c in df.columns]
-                st.dataframe(df, use_container_width=True, height=380)
-
-            with tab_all:
-                render_call_table(calls)
-                if calls:
-                    csv = pd.DataFrame(calls).to_csv(index=False)
-                    st.download_button("⬇ Export CSV", data=csv,
-                        file_name=f"Volant_campaign_{sel_id[:8]}.csv", mime="text/csv")
-
-            with tab_ok:
-                render_call_table([c for c in calls if c.get("status") == "completed"])
-
-            with tab_fail:
-                render_call_table([c for c in calls if c.get("status") in ("failed","no-answer")])
-
-            # Auto-refresh
-            if is_running:
-                time.sleep(3)
-                st.rerun()
-
-
-# ─── Assistants ───────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  ASSISTANTS
+# ══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.tab == "Assistants":
+    page_header("Voice Assistants", "Manage all your VAPI bots — one per client, use case, or language")
+    assistants = GET("/assistants") or []
 
-    st.markdown("""
-    <div style="padding: 32px 0 24px 0;">
-      <div class="page-title">Voice Assistants</div>
-      <div class="page-sub">Manage all your VAPI bots — one per client, use case, or language</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    assistants = api_get("/assistants", [])
-
-    col_form, col_list = st.columns([2, 3], gap="large")
-
-    with col_form:
-        st.markdown('<div class="section-label">Add New Assistant</div>', unsafe_allow_html=True)
-        st.markdown('<div class="card-glow">', unsafe_allow_html=True)
-
-        with st.form("add_assistant"):
-            new_name   = st.text_input("Display Name", placeholder="e.g. Sales Bot EN")
-            new_id     = st.text_input("VAPI Assistant ID", placeholder="asst_xxxxxxxxxxxx")
-            new_desc   = st.text_input("Description", placeholder="e.g. English sales calls")
-            add_btn    = st.form_submit_button("➕  Add Assistant")
-
-            if add_btn:
-                if not new_name or not new_id:
-                    st.warning("Name and Assistant ID are required.")
+    col_f, col_l = st.columns([2,3], gap="large")
+    with col_f:
+        st.markdown('<div class="sec">Add Assistant</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-gold">', unsafe_allow_html=True)
+        with st.form("add_asst"):
+            aname = st.text_input("Display Name", placeholder="e.g. Sales Bot")
+            asst_id_val = st.text_input("VAPI Assistant ID", placeholder="asst_…")
+            adesc = st.text_input("Description", placeholder="e.g. English outbound")
+            st.markdown('<div class="btn-gold">', unsafe_allow_html=True)
+            ok = st.form_submit_button("➕  Add")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if ok:
+                if not aname or not asst_id_val: st.warning("Name and ID required.")
                 else:
-                    data, err = api_post("/assistants", {
-                        "name": new_name,
-                        "assistant_id": new_id,
-                        "description": new_desc,
-                    })
-                    if err:
-                        st.error(f"Failed: {err}")
-                    else:
-                        st.success(f"✅ {new_name} added!")
-                        st.rerun()
-
+                    data, err = POST("/assistants", {"name":aname,"assistant_id":asst_id_val,"description":adesc})
+                    if err: st.error(err)
+                    else: st.success(f"✅ {aname} added!"); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
-        st.markdown("""
-        <div class="card">
-          <div class="section-label">Where to find your Assistant ID</div>
-          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--muted2);line-height:1.8;margin-top:8px;">
-            1. Go to <a href="https://vapi.ai" target="_blank" style="color:var(--gold);text-decoration:none;">vapi.ai</a><br>
-            2. Open <strong style="color:var(--text);">Assistants</strong><br>
-            3. Click your bot<br>
-            4. Copy the <strong style="color:var(--text);">Assistant ID</strong> at the top
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_list:
-        st.markdown(f'<div class="section-label">{len(assistants)} assistant{"s" if len(assistants)!=1 else ""} configured</div>', unsafe_allow_html=True)
-
+    with col_l:
+        st.markdown(f'<div class="sec">{len(assistants)} assistant{"s" if len(assistants)!=1 else ""}</div>', unsafe_allow_html=True)
         if not assistants:
-            st.markdown("""
-            <div class="empty-state" style="padding:60px 20px;">
-              <div class="empty-icon">🤖</div>
-              <div class="empty-title">No assistants yet</div>
-              <div class="empty-desc">Add your first voice bot using the form</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown('<div class="empty" style="padding:50px 20px;"><div class="empty-icon">🤖</div><div class="empty-title">No assistants yet</div><div class="empty-desc">Add one using the form</div></div>', unsafe_allow_html=True)
         else:
             for a in assistants:
-                col_a, col_b = st.columns([6, 1])
-                with col_a:
+                ca, cb = st.columns([6,1])
+                with ca:
                     st.markdown(f"""
-                    <div class="assistant-card">
+                    <div class="assist-card">
                       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
                         <span style="font-size:20px;">🤖</span>
                         <div>
-                          <div class="assistant-name">{a['name']}</div>
-                          <div class="assistant-desc">{a.get('description') or 'No description'}</div>
+                          <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--txt);">{a['name']}</div>
+                          <div style="font-family:'Instrument Sans',sans-serif;font-size:12px;color:var(--mut2);font-style:italic;">{a.get('description') or 'No description'}</div>
                         </div>
                       </div>
-                      <div class="assistant-id">ID: {a['assistant_id']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col_b:
-                    st.markdown('<div style="padding-top:10px">', unsafe_allow_html=True)
-                    if st.button("🗑", key=f"del_{a['id']}", help="Delete assistant"):
-                        try:
-                            requests.delete(f"{API}/assistants/{a['id']}", timeout=5)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(str(e))
+                      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);">ID: {a['assistant_id']}</div>
+                    </div>""", unsafe_allow_html=True)
+                with cb:
+                    st.markdown('<div style="padding-top:10px;">', unsafe_allow_html=True)
+                    if is_admin() and st.button("🗑", key=f"da_{a['id']}"):
+                        DELETE(f"/assistants/{a['id']}"); st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  TEAM (user management per customer)
+# ══════════════════════════════════════════════════════════════════════════════
 
-# ─── Settings ─────────────────────────────────────────────────────────────────
+elif st.session_state.tab == "Team":
+    if not is_admin():
+        st.markdown('<div class="empty"><div class="empty-icon">🔒</div><div class="empty-title">Admin access required</div></div>', unsafe_allow_html=True)
+        st.stop()
+
+    page_header("Team", "Manage users for this customer account")
+    customer_id = cid()
+    if is_super():
+        # Super admin picks a customer
+        customers = GET("/customers") or []
+        if not customers:
+            st.info("Create a customer first."); st.stop()
+        cnames = [f"{c['name']} ({c['id'][:8]})" for c in customers]
+        sel_ci = st.selectbox("Select Customer", range(len(cnames)), format_func=lambda i: cnames[i])
+        customer_id = customers[sel_ci]["id"]
+
+    users = GET(f"/customers/{customer_id}/users") or []
+
+    col_f, col_l = st.columns([2,3], gap="large")
+    with col_f:
+        st.markdown('<div class="sec">Add User</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-gold">', unsafe_allow_html=True)
+        with st.form("add_user"):
+            uname  = st.text_input("Username", placeholder="e.g. priya.sharma")
+            dname  = st.text_input("Display Name", placeholder="e.g. Priya Sharma")
+            pw     = st.text_input("Password", type="password", placeholder="••••••••")
+            urole  = st.selectbox("Role", ["customer_user","customer_admin"],
+                                  format_func=lambda r: "👤 Normal User" if r=="customer_user" else "🔑 Admin")
+            st.markdown('<div class="btn-gold">', unsafe_allow_html=True)
+            ok = st.form_submit_button("➕  Add User")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if ok:
+                if not uname or not pw or not dname: st.warning("All fields required.")
+                else:
+                    data, err = POST(f"/customers/{customer_id}/users",
+                                     {"username":uname,"password":pw,"display_name":dname,"role":urole})
+                    if err: st.error(err)
+                    else: st.success(f"✅ User **{dname}** added!"); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="height:14px"></div>
+        <div class="card">
+          <div class="sec">Role Permissions</div>
+          <div style="font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--mut2);line-height:1.9;">
+            <strong style="color:var(--gold);">⭐ Super Admin</strong><br>
+            Full platform access<br><br>
+            <strong style="color:var(--blue);">🔑 Customer Admin</strong><br>
+            Launch campaigns, manage team, configure settings<br><br>
+            <strong style="color:var(--mut2);">👤 Normal User</strong><br>
+            View Dashboard only — read-only access
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+    with col_l:
+        st.markdown(f'<div class="sec">{len(users)} user{"s" if len(users)!=1 else ""} on this account</div>', unsafe_allow_html=True)
+        if not users:
+            st.markdown('<div class="empty" style="padding:50px 20px;"><div class="empty-icon">👥</div><div class="empty-title">No users yet</div><div class="empty-desc">Add the first user</div></div>', unsafe_allow_html=True)
+        else:
+            for u in users:
+                ca, cb = st.columns([5,1])
+                with ca:
+                    st.markdown(f"""
+                    <div class="user-row">
+                      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                        <div style="width:32px;height:32px;border-radius:50%;background:rgba(77,159,255,.12);border:1px solid rgba(77,159,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;">
+                          {"🔑" if u["role"]=="customer_admin" else "👤"}
+                        </div>
+                        <div>
+                          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--txt);">{u.get('display_name') or u['username']}</div>
+                          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);">@{u['username']}</div>
+                        </div>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        {role_pill(u['role'])}
+                        {"" if u['is_active'] else '<span class="badge br">Inactive</span>'}
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+                with cb:
+                    st.markdown('<div style="padding-top:12px;">', unsafe_allow_html=True)
+                    if st.button("🗑", key=f"du_{u['id']}"):
+                        DELETE(f"/customers/{customer_id}/users/{u['id']}"); st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SETTINGS
+# ══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.tab == "Settings":
+    if not is_admin():
+        st.markdown('<div class="empty"><div class="empty-icon">🔒</div><div class="empty-title">Admin access required</div></div>', unsafe_allow_html=True)
+        st.stop()
 
-    st.markdown("""
-    <div style="padding: 32px 0 24px 0;">
-      <div class="page-title">Settings</div>
-      <div class="page-sub">Connect your VAPI and Twilio accounts</div>
-    </div>
-    """, unsafe_allow_html=True)
+    page_header("Settings", "Configure VAPI and Twilio for this account")
+    current = GET("/settings") or {}
 
-    current = api_get("/settings", {})
-
-    col_main, col_guide = st.columns([3, 2], gap="large")
-
-    with col_main:
-        st.markdown('<div class="section-label">API Credentials</div>', unsafe_allow_html=True)
-
+    col_m, col_g = st.columns([3,2], gap="large")
+    with col_m:
+        st.markdown('<div class="sec">API Credentials</div>', unsafe_allow_html=True)
         with st.form("settings_form"):
-            st.markdown('<div class="section-label" style="margin-top:0">VAPI</div>', unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1:
-                vapi_key  = st.text_input("API Key", value=current.get("vapi_api_key",""), type="password", placeholder="vapi_…")
-            with c2:
-                vapi_asst = st.text_input("Default Assistant ID", value=current.get("vapi_assistant_id",""), placeholder="asst_…")
-
-            st.markdown('<div class="section-label">Twilio / Phone</div>', unsafe_allow_html=True)
-            twilio_num = st.text_input(
-                "VAPI Phone Number ID",
-                value=current.get("twilio_phone_number",""),
-                placeholder="Phone Number ID from VAPI dashboard",
-                help="VAPI → Phone Numbers → copy the ID (not the +91 number)"
-            )
-
-            st.markdown('<div class="section-label">Rate Limiting</div>', unsafe_allow_html=True)
-            cpm = st.slider("Calls per minute", 1, 60, int(current.get("calls_per_minute", 10)))
-
-            st.markdown('<div class="btn-primary" style="margin-top:8px">', unsafe_allow_html=True)
+            st.markdown('<div class="sec" style="margin-top:0;">VAPI</div>', unsafe_allow_html=True)
+            g1, g2 = st.columns(2)
+            with g1: vapi_key  = st.text_input("API Key", value=current.get("vapi_api_key",""), type="password", placeholder="vapi_…")
+            with g2: vapi_asst = st.text_input("Default Assistant ID", value=current.get("vapi_assistant_id",""), placeholder="asst_…")
+            st.markdown('<div class="sec">Twilio / Phone</div>', unsafe_allow_html=True)
+            twilio = st.text_input("VAPI Phone Number ID", value=current.get("twilio_phone_number",""), placeholder="Phone Number ID from VAPI dashboard")
+            st.markdown('<div class="sec">Rate Limiting</div>', unsafe_allow_html=True)
+            cpm = st.slider("Calls per minute", 1, 60, int(current.get("calls_per_minute",10)))
+            st.markdown('<div class="btn-gold" style="margin-top:8px;">', unsafe_allow_html=True)
             saved = st.form_submit_button("💾  Save Settings")
             st.markdown('</div>', unsafe_allow_html=True)
-
             if saved:
-                data, err = api_post("/settings", {
-                    "vapi_api_key": vapi_key,
-                    "vapi_assistant_id": vapi_asst,
-                    "twilio_phone_number": twilio_num,
-                    "calls_per_minute": cpm,
-                })
-                if err:
-                    st.error(f"Save failed: {err}")
-                else:
-                    st.success("✅ Settings saved!")
+                _, err = POST("/settings", {"vapi_api_key":vapi_key,"vapi_assistant_id":vapi_asst,
+                                            "twilio_phone_number":twilio,"calls_per_minute":cpm})
+                if err: st.error(err)
+                else: st.success("✅ Settings saved!")
 
-    with col_guide:
-        st.markdown('<div class="section-label">Setup Guide</div>', unsafe_allow_html=True)
-
-        with st.expander("🔑 Getting your VAPI API Key", expanded=True):
-            st.markdown("""
-            1. Go to **[vapi.ai](https://vapi.ai)** → sign in
-            2. Click **API Keys** in the sidebar
-            3. Generate or copy your key
-            4. Paste it in the API Key field ←
-            """)
-
-        with st.expander("📞 Linking your Twilio number"):
-            st.markdown("""
-            1. In VAPI → **Phone Numbers**
-            2. Import your Twilio number (or buy one)
-            3. Copy the **Phone Number ID** (not `+91…`)
-            4. Paste it in the field ←
-            """)
-
+    with col_g:
+        st.markdown('<div class="sec">Setup Guide</div>', unsafe_allow_html=True)
+        with st.expander("🔑 VAPI API Key", expanded=True):
+            st.markdown("1. Go to **[vapi.ai](https://vapi.ai)** → API Keys\n2. Generate or copy your key\n3. Paste it above")
+        with st.expander("📞 Twilio Phone Number ID"):
+            st.markdown("1. VAPI → **Phone Numbers**\n2. Import your Twilio number\n3. Copy the **Phone Number ID** (not `+91…`)")
         with st.expander("🔔 Webhook for live status"):
-            st.markdown("""
-            In VAPI → your Assistant → **Server URL**:
-            ```
-            https://your-domain.com/api/webhook/vapi
-            ```
-            For local dev use ngrok:
-            ```
-            ngrok http 4000
-            ```
-            """)
+            st.markdown("VAPI → Assistant → **Server URL**:\n```\nhttps://your-domain.com/api/webhook/vapi\n```")
 
-
-# ─── Footer ───────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  FOOTER
+# ══════════════════════════════════════════════════════════════════════════════
 
 st.markdown("""
-<div style="margin-top:40px;padding-top:20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.1em;color:var(--muted);">आवाज़ · Volant</span>
-  <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">VAPI + TWILIO + PYTHON</span>
-  <a href="https://docs.vapi.ai" target="_blank" style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;color:var(--gold);text-decoration:none;letter-spacing:0.06em;">VAPI DOCS →</a>
+<div style="margin-top:40px;padding-top:18px;border-top:1px solid var(--b);display:flex;justify-content:space-between;align-items:center;">
+  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--mut);">आवाज़ · AWAAZ</span>
+  <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--mut);">VAPI + TWILIO + PYTHON + SQLITE</span>
+  <a href="https://docs.vapi.ai" target="_blank" style="font-family:'Syne',sans-serif;font-size:11px;font-weight:600;color:var(--gold);text-decoration:none;letter-spacing:.06em;">VAPI DOCS →</a>
 </div>
 """, unsafe_allow_html=True)
