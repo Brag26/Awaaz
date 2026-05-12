@@ -11,7 +11,7 @@ import time
 st.set_page_config(page_title="Volant", page_icon="🎙️", layout="wide",
                    initial_sidebar_state="expanded")
 
-API = "http://localhost:4000/api"
+API = "http://127.0.0.1:4000/api"
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CSS
