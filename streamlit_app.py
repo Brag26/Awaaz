@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 import time
 
-st.set_page_config(page_title="Awaaz", page_icon="🎙️", layout="wide",
+st.set_page_config(page_title="Volant", page_icon="🎙️", layout="wide",
                    initial_sidebar_state="expanded")
 
 API = "http://localhost:4000/api"
