@@ -1,5 +1,5 @@
 """
-Awaaz — Backend API
+Volant — Backend API
 Roles: super_admin | customer_admin | customer_user
 Storage: SQLite (file-based, persists across restarts)
 Run: uvicorn backend:app --reload --port 4000
