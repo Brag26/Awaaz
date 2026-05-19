@@ -1271,7 +1271,7 @@ elif st.session_state.tab == "Settings":
         with st.expander("Webhook — Live Call Status"):
             st.markdown("Set this URL in VAPI → Assistant → **Server URL**:\n```\nhttps://your-domain.com/api/webhook/vapi\n```")
         with st.expander("Production Deployment"):
-            st.markdown("**Backend** → Railway or Render\n\n**Frontend** → Streamlit Cloud (free)\n\nUpdate the `API` variable in `app.py` with your Railway backend URL.")
+            st.markdown("**Backend** → Railway or Render\n\n**Frontend** → Streamlit Cloud (free)\n\nUpdate the `API` variable in `streamlit_app.py` with your Railway backend URL.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  FOOTER
