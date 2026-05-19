@@ -1,5 +1,5 @@
 """
-Awaaz — Backend API (No Auth)
+Volant — Backend API (No Auth)
 Storage: SQLite
 Run: python -m uvicorn backend:app --reload --port 4000 --host 0.0.0.0
 """
@@ -12,10 +12,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="Awaaz API")
+app = FastAPI(title="Olivos AI API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-DB_PATH = "awaaz.db"
+DB_PATH = "olivos.db"
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
